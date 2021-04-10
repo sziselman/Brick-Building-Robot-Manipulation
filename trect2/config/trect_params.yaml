@@ -1,0 +1,3 @@
+max_xdot: 2.0
+max_wdot: 1.0
+frequency: 100
