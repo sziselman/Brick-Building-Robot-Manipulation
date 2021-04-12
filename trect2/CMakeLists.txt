@@ -21,30 +21,33 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(turtlesim REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(${PROJECT_NAME})
+
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
-add_executable(trect2 src/turtle_rect2.cpp)
-ament_target_dependencies(trect2 
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/Start.srv"
+)
+  
+add_executable(${PROJECT_NAME}_node src/turtle_rect2.cpp)
+
+ament_target_dependencies(${PROJECT_NAME}_node
   geometry_msgs
   rclcpp 
   std_msgs 
   turtlesim
+  ${PROJECT_NAME}
 )
 
 install(TARGETS 
-  trect2
+  ${PROJECT_NAME}_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY
-  launch
-  DESTINATION share/${PROJECT_NAME}
-)
-
-install(DIRECTORY 
-  config
+install(DIRECTORY launch config srv
   DESTINATION share/${PROJECT_NAME}
 )
 
