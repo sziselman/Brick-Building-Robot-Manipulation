@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(trect2)
+project(trect)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -18,38 +18,41 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(std_msgs REQUIRED)
 find_package(turtlesim REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(${PROJECT_NAME})
+
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/Start.srv"
+)
+
 
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
-rosidl_generate_interfaces(${PROJECT_NAME}
-  "srv/Start.srv"
-)
-  
-add_executable(${PROJECT_NAME}_node src/turtle_rect2.cpp)
+add_executable(turtle_rect src/turtle_rect.cpp)
 
-ament_target_dependencies(${PROJECT_NAME}_node
+ament_target_dependencies(turtle_rect
   geometry_msgs
-  rclcpp 
-  std_msgs 
+  rclcpp
+  std_msgs
+  std_srvs
   turtlesim
   ${PROJECT_NAME}
-)
+  )
 
-install(TARGETS 
-  ${PROJECT_NAME}_node
+install(TARGETS
+  turtle_rect
   DESTINATION lib/${PROJECT_NAME}
 )
 
 install(DIRECTORY launch config srv
-  DESTINATION share/${PROJECT_NAME}
-)
+  DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -62,4 +65,5 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+ament_export_dependencies(rosidl_default_runtime)
 ament_package()
