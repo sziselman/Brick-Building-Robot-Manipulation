@@ -36,10 +36,76 @@ class turtle_rect : public rclcpp::Node
                 y = req->y;
                 width = req->width;
                 height = req->height;
+
+                /*******
+                 * Set color of the pen to pastel yellow
+                 * ****/
+                auto pen_color = std::make_shared<turtlesim::srv::SetPen::Request>();
+
+                pen_color->r = 253;
+                pen_color->b = 150;
+                pen_color->g = 253;
+                pen_color->width = 5;
+                pen_color->off = 0;
+
+                pen_client->async_send_request(pen_color);
+
+                /*******
+                 * Clear background of turtle simulator
+                 * ****/
+                auto empty = std::make_shared<std_srvs::srv::Empty::Request>();
+
+                empty_client->async_send_request(empty);
+
+                /*******
+                 * Move turtle to designated start position
+                 * ****/
+                auto absPos = std::make_shared<turtlesim::srv::TeleportAbsolute::Request>();
+                absPos->x = x;
+                absPos->y = y;
+                absPos->theta = 0;
+                teleAbs_client->async_send_request(absPos);
+                
+                empty_client->async_send_request(empty);
+
+                /*******
+                 * Have turtle draw the rectangle in yellow
+                 * ****/
+                absPos->x = x + width;
+                teleAbs_client->async_send_request(absPos);
+
+                absPos->y = y + height;
+                teleAbs_client->async_send_request(absPos);
+
+                absPos->x = x;
+                teleAbs_client->async_send_request(absPos);
+
+                absPos->y = y;
+                teleAbs_client->async_send_request(absPos);
+
+                /*******
+                 * Change color of the pen to lavender
+                 * ****/
+                pen_color->r = 182;
+                pen_color->b = 104;
+                pen_color->g = 182;
+
+                pen_client->async_send_request(pen_color);
+
+                /********
+                 * Put turtle in bottom state
+                 * *****/
+                currState = bottom;
+
             };
 
             startServ = this->create_service<trect::srv::Start>("start", start);
-            
+            startClient = this->create_client<trect::srv::Start>("start");
+            pen_client = this->create_client<turtlesim::srv::SetPen>("turtle1/set_pen");
+            teleAbs_client = this->create_client<turtlesim::srv::TeleportAbsolute>("turtle1/teleport_absolute");
+            teleRel_client = this->create_client<turtlesim::srv::TeleportRelative>("turtle1/teleport_relative");
+            empty_client = this->create_client<std_srvs::srv::Empty>("/clear");
+
             this->declare_parameter("max_xdot");
             this->declare_parameter("max_wdot");
             this->declare_parameter("frequency");
@@ -57,6 +123,11 @@ class turtle_rect : public rclcpp::Node
         rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr posePub;
         rclcpp::Subscription<turtlesim::msg::Pose>::SharedPtr twistSub;
         rclcpp::Service<trect::srv::Start>::SharedPtr startServ;
+        rclcpp::Client<trect::srv::Start>::SharedPtr startClient;
+        rclcpp::Client<turtlesim::srv::SetPen>::SharedPtr pen_client;
+        rclcpp::Client<turtlesim::srv::TeleportAbsolute>::SharedPtr teleAbs_client;
+        rclcpp::Client<turtlesim::srv::TeleportRelative>::SharedPtr teleRel_client;
+        rclcpp::Client<std_srvs::srv::Empty>::SharedPtr empty_client;
 
         rclcpp::TimerBase::SharedPtr timer;
 
@@ -69,7 +140,8 @@ class turtle_rect : public rclcpp::Node
         geometry_msgs::msg::Twist twist_msg;
 
         enum State {idle, bottom, top, left, right, rotate};
-        State currentState, previousState;
+        State currState = idle;
+        State prevState = idle;
 
         void poseCallback( turtlesim::msg::Pose::SharedPtr pose) 
         {
@@ -78,11 +150,24 @@ class turtle_rect : public rclcpp::Node
 
         void timer_callback()
         {
-            twist_msg.linear.x = 1.0;
-            twist_msg.angular.z = 0;
-
-            std::cout << turtle_pose.x << std::endl;
-            posePub->publish(twist_msg);
+            switch (currState)
+            {
+                /*******
+                 * Idle: Turtle is idle before moving in rectangular trajectory and after finishing moving in rectangle
+                 * ****/
+                case idle:
+                    break;
+                case bottom:
+                    break;
+                case right:
+                    break;
+                case top:
+                    break;
+                case left:
+                    break;
+                case rotate:
+                    break;
+            }
         }
 
 };
