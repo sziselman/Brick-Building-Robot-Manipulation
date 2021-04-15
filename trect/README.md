@@ -1,15 +1,17 @@
 # Trect Package
 Launches the turtle simulator and contains a "start" service that will tell the robot what location to start moving in a rectangular trajectory. Package is built in ROS2.
 # Example Usage
-Clone repository in a workspace directory using the following command:
-```
-git clone https://github.com/sziselman/Brick-Building-Robot-Manipulation
-```
+
 Open a terminal and source using the following command (NOTE: the command may differ depending on where ROS2 foxy installation is):
 ```
 source /opt/ros/foxy/setup.bash
 ```
-Navigate to the workspace and build:
+
+Navigate to the workspace and clone the git repository using the following command:
+```
+git clone https://github.com/sziselman/Brick-Building-Robot-Manipulation
+```
+Build the workspace:
 ```
 colcon build
 ```
