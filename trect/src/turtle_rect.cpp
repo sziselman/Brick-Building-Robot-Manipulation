@@ -20,6 +20,8 @@
 
 #include <geometry_msgs/msg/twist.hpp>
 
+static const double PI = 3.14159265359;
+
 class turtle_rect : public rclcpp::Node
 {
     public:
@@ -28,14 +30,21 @@ class turtle_rect : public rclcpp::Node
             using std::placeholders::_1;
             using namespace std::chrono_literals;
 
-            posePub = this->create_publisher<geometry_msgs::msg::Twist>("turtle1/cmd_vel", 10);
-            twistSub = this->create_subscription<turtlesim::msg::Pose>("turtle1/pose", 10, std::bind(&turtle_rect::poseCallback, this, _1));
+            twistPub = this->create_publisher<geometry_msgs::msg::Twist>("turtle1/cmd_vel", 10);
+            poseSub = this->create_subscription<turtlesim::msg::Pose>("turtle1/pose", 10, std::bind(&turtle_rect::poseCallback, this, _1));
 
             auto start = [this](const std::shared_ptr<trect::srv::Start::Request> req, std::shared_ptr<trect::srv::Start::Response> res) -> void {
                 x = req->x;
                 y = req->y;
                 width = req->width;
                 height = req->height;
+
+                /*******
+                 * Set the first desired location of the turtle (bottom right corner)
+                 * ****/
+                desiredX = x + width;
+                desiredY = y;
+                desiredTh = 0;
 
                 /*******
                  * Set color of the pen to pastel yellow
@@ -120,8 +129,8 @@ class turtle_rect : public rclcpp::Node
 
     private:
 
-        rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr posePub;
-        rclcpp::Subscription<turtlesim::msg::Pose>::SharedPtr twistSub;
+        rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr twistPub;
+        rclcpp::Subscription<turtlesim::msg::Pose>::SharedPtr poseSub;
         rclcpp::Service<trect::srv::Start>::SharedPtr startServ;
         rclcpp::Client<trect::srv::Start>::SharedPtr startClient;
         rclcpp::Client<turtlesim::srv::SetPen>::SharedPtr pen_client;
@@ -135,6 +144,8 @@ class turtle_rect : public rclcpp::Node
         double width, height;
         double x, y;
         int frequency;
+
+        double desiredX, desiredY, desiredTh;
 
         turtlesim::msg::Pose turtle_pose;
         geometry_msgs::msg::Twist twist_msg;
@@ -156,16 +167,98 @@ class turtle_rect : public rclcpp::Node
                  * Idle: Turtle is idle before moving in rectangular trajectory and after finishing moving in rectangle
                  * ****/
                 case idle:
+                    twist_msg.linear.x = 0;
+                    twist_msg.angular.z = 0;
+                    twistPub->publish(twist_msg);
                     break;
                 case bottom:
+                    twist_msg.linear.x = max_xdot;
+                    twist_msg.angular.z = 0;
+
+                    if (desiredX - turtle_pose.x < 0)
+                    {
+                        desiredTh = PI/2;
+                        prevState = currState;
+                        currState = rotate;
+                    }
+
+                    twistPub->publish(twist_msg);
                     break;
+
                 case right:
+                    twist_msg.linear.x = max_xdot;
+                    twist_msg.angular.z = 0;
+
+                    if (desiredY - turtle_pose.y < 0)
+                    {
+                        desiredTh = PI;
+                        prevState = currState;
+                        currState = rotate;
+                    }
+
+                    twistPub->publish(twist_msg);
                     break;
+
                 case top:
+                    twist_msg.linear.x = max_xdot;
+                    twist_msg.angular.z = 0;
+
+                    if (desiredX - turtle_pose.x > 0)
+                    {
+                        desiredTh = 3*PI/2;
+                        prevState = currState;
+                        currState = rotate;
+                    }
+
+                    twistPub->publish(twist_msg);
                     break;
+
                 case left:
+                    twist_msg.linear.x = max_xdot;
+                    twist_msg.angular.z = 0;
+
+                    if (desiredY - turtle_pose.y > 0)
+                    {
+                        desiredTh = 0;
+                        prevState = currState;
+                        currState = idle;
+                    }
+
+                    twistPub->publish(twist_msg);
                     break;
+
                 case rotate:
+                    twist_msg.linear.x = 0;
+                    twist_msg.angular.z = max_wdot;
+
+                    if (prevState == bottom)
+                    {
+                        if (fabs(desiredTh - turtle_pose.theta) < 0.01)
+                        {
+                            desiredY += height;
+                            prevState = currState;
+                            currState = right;
+                        }
+                    } 
+                    else if (prevState == right)
+                    {
+                        if (fabs(desiredTh - turtle_pose.theta) < 0.01)
+                        {
+                            desiredX -= width;
+                            prevState = currState;
+                            currState = top;
+                        }
+                    } 
+                    else if (prevState == top)
+                    {
+                        if (fabs(desiredTh - turtle_pose.theta) < 0.01)
+                        {
+                            desiredY -= height;
+                            prevState = currState;
+                            currState = left;
+                        }
+                    }
+                    twistPub->publish(twist_msg);
                     break;
             }
         }
