@@ -30,6 +30,14 @@ class turtle_rect : public rclcpp::Node
             using std::placeholders::_1;
             using namespace std::chrono_literals;
 
+            this->declare_parameter("max_xdot");
+            this->declare_parameter("max_wdot");
+            this->declare_parameter("frequency");
+
+            this->get_parameter("max_xdot", max_xdot);
+            this->get_parameter("max_wdot", max_wdot);
+            this->get_parameter("frequency", frequency);
+            
             twistPub = this->create_publisher<geometry_msgs::msg::Twist>("turtle1/cmd_vel", 10);
             poseSub = this->create_subscription<turtlesim::msg::Pose>("turtle1/pose", 10, std::bind(&turtle_rect::poseCallback, this, _1));
 
@@ -95,9 +103,12 @@ class turtle_rect : public rclcpp::Node
                 /*******
                  * Change color of the pen to lavender
                  * ****/
+
                 pen_color->r = 182;
                 pen_color->b = 104;
                 pen_color->g = 182;
+                pen_color->width = 5;
+                pen_color->off = 0;
 
                 pen_client->async_send_request(pen_color);
 
@@ -114,14 +125,6 @@ class turtle_rect : public rclcpp::Node
             teleAbs_client = this->create_client<turtlesim::srv::TeleportAbsolute>("turtle1/teleport_absolute");
             teleRel_client = this->create_client<turtlesim::srv::TeleportRelative>("turtle1/teleport_relative");
             empty_client = this->create_client<std_srvs::srv::Empty>("/clear");
-
-            this->declare_parameter("max_xdot");
-            this->declare_parameter("max_wdot");
-            // this->declare_parameter("frequency");
-
-            this->get_parameter("max_xdot", max_xdot);
-            this->get_parameter("max_wdot", max_wdot);
-            // this->get_parameter("frequency", frequency);
 
             timer = this->create_wall_timer(std::chrono::milliseconds(1000/frequency), std::bind(&turtle_rect::timer_callback, this));
         }
@@ -143,7 +146,7 @@ class turtle_rect : public rclcpp::Node
         double max_xdot, max_wdot;
         double width, height;
         double x, y;
-        int frequency = 100;
+        int frequency;
 
         double desiredX, desiredY, desiredTh;
 
@@ -167,14 +170,12 @@ class turtle_rect : public rclcpp::Node
                  * Idle: Turtle is idle before moving in rectangular trajectory and after finishing moving in rectangle
                  * ****/
                 case idle:
-                    std::cout << "IDLE!!" << std::endl;
                     twist_msg.linear.x = 0;
                     twist_msg.angular.z = 0;
                     twistPub->publish(twist_msg);
                     break;
                 case bottom:
-                    std::cout << "BOTTOM!!" << std::endl;
-                    twist_msg.linear.x = 1;
+                    twist_msg.linear.x = max_xdot;
                     twist_msg.angular.z = 0;
 
                     if (desiredX - turtle_pose.x < 0)
@@ -188,9 +189,7 @@ class turtle_rect : public rclcpp::Node
                     break;
 
                 case right:
-                    std::cout << "RIGHT!!" << std::endl;
-                    // twist_msg.linear.x = max_xdot;
-                    twist_msg.linear.x = 1;
+                    twist_msg.linear.x = max_xdot;
                     twist_msg.angular.z = 0;
 
                     if (desiredY - turtle_pose.y < 0)
@@ -204,8 +203,7 @@ class turtle_rect : public rclcpp::Node
                     break;
 
                 case top:
-                    // twist_msg.linear.x = max_xdot;
-                    twist_msg.linear.x = 1;
+                    twist_msg.linear.x = max_xdot;
                     twist_msg.angular.z = 0;
 
                     if (desiredX - turtle_pose.x > 0)
@@ -219,8 +217,7 @@ class turtle_rect : public rclcpp::Node
                     break;
 
                 case left:
-                    // twist_msg.linear.x = max_xdot;
-                    twist_msg.linear.x = 1;
+                    twist_msg.linear.x = max_xdot;
                     twist_msg.angular.z = 0;
 
                     if (desiredY - turtle_pose.y > 0)
@@ -234,10 +231,8 @@ class turtle_rect : public rclcpp::Node
                     break;
 
                 case rotate:
-                    std::cout << "ROTATE!!!" << std::endl;
                     twist_msg.linear.x = 0;
-                    // twist_msg.angular.z = max_wdot;
-                    twist_msg.angular.z = 1;
+                    twist_msg.angular.z = max_wdot;
 
                     if (prevState == bottom)
                     {
