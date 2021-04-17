@@ -26,7 +26,7 @@ You can now launch the .py file:
 ```
 ros2 launch trect trect_launch.py
 ```
-(NOTE: There are still edits that need to be made to get the service to properly work. This is the general idea of how it should run.) In order to start the service, open a new terminal, source it and enter the following command:
+In order to start the service, open a new terminal, source it and enter the following command:
 ```
 source /opt/ros/foxy/setup.bash
 ```
