@@ -21,7 +21,6 @@ cd colcon_ws/src
 ```
 Place ROS2 packages in the ```src``` folder. 
 
-## Using the ROS1 to ROS2 bridge
 3. Clone the ROS1 bridge package in the ```src``` directory of the ```colcon_ws```. Note: I cloned the foxy branch, as it matches my ROS release.
 ```
 git clone -b foxy https://github.com/ros2/ros1_bridge
@@ -29,7 +28,7 @@ git clone -b foxy https://github.com/ros2/ros1_bridge
 ## Variable Mapping
 4. This step may not be necessary, depending on how variables in your messages and services are named. ROS2 has stricter linting rules and CamelCase variables are no longer used. In this step, re-name variables that are usable in ROS, but otherwise not useable in ROS2.
 
-5. Depending on if variables were re-named or not, create a .yaml file that linkes the new name to the old name.
+5. Depending on if variables were re-named or not, create a .yaml file that links the new name to the old name.
 
 ## Build the ROS2 workspace
 6. Source the ```colcon_ws``` and build.
@@ -55,10 +54,13 @@ ros2 run ros1_bridge dynamic_bridge
 ```
 
 ## Start the ROS1 node
-8. Now, we start the ROS1 node in a new terminal. In this example, I am using my ROS1 ```turtle_rect``` node from the following repository: https://github.com/sziselman/Shermbot 
+8. Now, we start the ROS1 node in a new terminal. In this example, I am using my ROS1 ```turtle_rect``` node from the following repository: https://github.com/sziselman/Shermbot . We also need to set the parameters for the ```turtle_rect``` node.
 ```
 # Shell C (ROS1):
 source /opt/ros/noetic/setup.bash
+rosparam set max_xdot 2.0
+rosparam set max_wdot 1.0
+rosparam set frequency 100
 rosrun trect turtle_rect
 ```
 
