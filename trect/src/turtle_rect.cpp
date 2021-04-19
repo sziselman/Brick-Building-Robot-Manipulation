@@ -20,6 +20,8 @@
 
 #include <geometry_msgs/msg/twist.hpp>
 
+#include <unistd.h>
+
 static const double PI = 3.14159265359;
 
 class turtle_rect : public rclcpp::Node
@@ -62,6 +64,10 @@ class turtle_rect : public rclcpp::Node
                 pen_color->r = 253;
                 pen_color->b = 150;
                 pen_color->g = 253;
+                // pen_color->r = 255;
+                // pen_color->b = 255;
+                // pen_color->g = 255;
+
                 pen_color->width = 5;
                 pen_color->off = 0;
 
@@ -104,9 +110,14 @@ class turtle_rect : public rclcpp::Node
                  * Change color of the pen to lavender
                  * ****/
 
+                // usleep(10000);
+                
                 pen_color->r = 182;
                 pen_color->b = 104;
                 pen_color->g = 182;
+                // pen_color->r = 0;
+                // pen_color->b = 0;
+                // pen_color->g = 0;
                 pen_color->width = 5;
                 pen_color->off = 0;
 
