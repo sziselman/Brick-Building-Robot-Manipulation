@@ -5,7 +5,7 @@ This file documents how to bridge ROS and ROS2.
 1. Navigate to the folder in which you'd like your workspace to be held and create a catkin workspace for any ROS packages.
 ```
 mkdir -p catkin_ws/src
-cd ws/src
+cd catkin_ws/src
 ```
 Place ROS packages in the ```src``` folder. Source the workspace and build.
 ```
