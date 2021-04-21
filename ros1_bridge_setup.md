@@ -1,5 +1,5 @@
 # Bridging ROS and ROS2
-This file documents how to bridge ROS and ROS2. 
+This file documents how to bridge ROS and ROS2. This allows for ROS1 nodes to be implemented in ROS2 nodes.
 
 ## Create the ROS workspace
 1. Navigate to the folder in which you'd like your workspace to be held and create a catkin workspace for any ROS packages.
