@@ -86,4 +86,4 @@ cd ~/catkin_ws/
 source devel/setup.bash
 rosservice call /start "x:1, y:2, width:3, height:4"
 ```
-You will now see that the ROS2 ```turtlesim_node
+You will now see that the ROS2 ```turtlesim_node``` will run the ```/start``` service.
