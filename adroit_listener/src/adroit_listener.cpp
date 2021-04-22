@@ -22,10 +22,10 @@ class AdroitSubscriber : public rclcpp::Node
         {
             if (msg->data == true)
             {
-                RCLCPP_INFO(this->get_logger(), "The manipulator is connected!");
+                RCLCPP_INFO(this->get_logger(), "The xbox controller is connected!");
             } else if (msg->data == false)
             {
-                RCLCPP_INFO(this->get_logger(), "The manipulator is not connected!");
+                RCLCPP_INFO(this->get_logger(), "The xbox controller is not connected!");
             } else
             {
                 RCLCPP_INFO(this->get_logger(), "The subscriber is not receiving anything!");

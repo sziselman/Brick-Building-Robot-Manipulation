@@ -45,11 +45,11 @@ cd ~/colcon_ws/
 . install/local_setup.bash
 ros2 run adroit_listener adroit_listener_node
 ```
-7. If the controller is not connected to the manipulator arm, then the following message will be displayed in the terminal running the ```adroit_listener_node```:
+7. If the xbox controller is not connected to the manipulator arm, then the following message will be displayed in the terminal running the ```adroit_listener_node```:
 ```
-The manipulator is not connected!
+The xbox controller is not connected!
 ```
-If the controller connected, then the following message will be displayed:
+If the xbox controller connected, then the following message will be displayed:
 ```
-The manipulator is connected!
+The xbox controller is connected!
 ```
