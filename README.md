@@ -3,3 +3,5 @@ Graduate-level independent project utilizing the HDT Adroit A24 Manipulator Arm 
 
 __This repository contains the following packages:__
 * trect - a package used to familiarize self with ROS2
+* adroit_listener - a package used to test the ```ros1_bridge``` with the ```hdt_6dof_a24_pincer``` software. 
+* controls - a package will be uesd to control the ```hdt_6dof_a24_pincer``` software using ```moveit2```.
