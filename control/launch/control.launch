@@ -1,0 +1,3 @@
+<launch>
+    <node="control" pkg="control" type="control" output="screen"/>
+</launch>
