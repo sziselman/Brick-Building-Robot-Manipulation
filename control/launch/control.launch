@@ -1,3 +1,4 @@
 <launch>
-    <node="control" pkg="control" type="control" output="screen"/>
+    <rosparam command="load" file="$(find control)/config/control_params.yaml"/>
+    <node name="control" pkg="control" type="control" output="screen"/>
 </launch>
