@@ -18,14 +18,19 @@
 
 #include <moveit_visual_tools/moveit_visual_tools.h>
 
+#include <geometry_msgs/Pose.h>
+
 
 int main(int argc, char* argv[])
 {
     // Initialize the node & node handle
 
-    ros::init(argc, argv, "control");
+    ros::init(argc, argv, "arm_control");
     ros::NodeHandle n;
 
+    ros::AsyncSpinner spinner(1);
+    spinner.start();
+    
     // Declare local variables
 
     ros::Rate loop_rate(100);
@@ -52,15 +57,29 @@ int main(int argc, char* argv[])
     const moveit::core::JointModelGroup* arm_model_group = arm_move_group_interface.getCurrentState()->getJointModelGroup(arm_planning_group);
     const moveit::core::JointModelGroup* pincer_model_group = pincer_move_group_interface.getCurrentState()->getJointModelGroup(pincer_planning_group);
 
-    // Visualization (using MoveItVisualTools)
-    namespace rvt = rviz_visual_tools;
-    moveit_visual_tools::MoveItVisualTools visual_tools("")
+    // // Visualization (using MoveItVisualTools)
+    // namespace rvt = rviz_visual_tools;
+    // moveit_visual_tools::MoveItVisualTools visual_tools("")
     
+    // Plan a motion for this group to a desired pose for the end-effector
+    geometry_msgs::Pose pincer_pose;
+    pincer_pose.orientation.w = 1.0;
+    pincer_pose.position.x = 1.0;
+    pincer_pose.position.y = 1.0;
+    pincer_pose.position.z = 1.0;
+    pincer_move_group_interface.setPoseTarget(pincer_pose);
 
-    while (ros::ok())
-    {
-        ros::spinOnce();
-        loop_rate.sleep();
-    }
+    // Call the planner to compute the plan and visualize it
+    moveit::planning_interface::MoveGroupInterface::Plan pincer_plan;
+    bool success = (pincer_move_group_interface.plan(pincer_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+
+    ROS_INFO_NAMED("tutorial", "Visualizing plan 1 (pose goal) %s", success ? "" : "FAILED");
+
+    // while (ros::ok())
+    // {
+    //     ros::spinOnce();
+    //     loop_rate.sleep();
+    // }
+    ros::shutdown();
     return 0;
 }

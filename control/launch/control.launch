@@ -1,4 +1,9 @@
 <launch>
+    <include file="$(find hdt_6dof_a24_pincer_bringup)/launch/hdt_arm_bringup_1.launch">
+        <arg name="simulation" value="true"/>
+    </include>
+
+    <node name="arm_control" pkg="control" type="arm_control" output="screen"/>
+
     <rosparam command="load" file="$(find control)/config/control_params.yaml"/>
-    <node name="control" pkg="control" type="control" output="screen"/>
 </launch>
