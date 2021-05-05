@@ -3,7 +3,13 @@
         <arg name="simulation" value="true"/>
     </include>
 
-    <node name="arm_control" pkg="control" type="arm_control" output="screen"/>
+    <include file="$(find hdt_6dof_a24_pincer_moveit)/launch/planning_context.launch">
+        <!-- <arg name="load_robot_discription" value="true"/> -->
+    </include>
+
+    <node name="arm_control" pkg="control" type="arm_control" output="screen">
+        <rosparam command="load" file="$(find hdt_6dof_a24_pincer_moveit)/config/kinematics.yaml"/>
+    </node>
 
     <rosparam command="load" file="$(find control)/config/control_params.yaml"/>
 </launch>
