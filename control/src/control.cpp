@@ -29,18 +29,17 @@
  * Global Variables
  * *****************/
 std::vector<double> brick_dimensions;
+static constexpr double PI=3.14159265358979323846;
 
 /********************
  * Helper Functions
  * *****************/
-void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, std::vector<double> brick_dims, std::vector<double> brick_orient);
+void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, std::vector<double> brick_loc, std::vector<double> brick_orient);
+void moveArm(moveit::planning_interface::MoveGroupInterface& move_group_interface, std::vector<double> brick_loc, std::vector<double> brick_orient);
+void openPincer(moveit::planning_interface::MoveGroupInterface& move_group_interface, const moveit::core::JointModelGroup* model_group);
 
 int main(int argc, char* argv[])
 {
-
-    constexpr double PI=3.14159265358979323846;
-
-
     // Initialize the node & node handle
 
     ros::init(argc, argv, "arm_control");
@@ -62,12 +61,8 @@ int main(int argc, char* argv[])
     n.getParam("brick_goal_location", brick_goal_loc);
     n.getParam("brick_goal_orientation", brick_goal_orient);
 
-    // Define publishers, subscribers, services and clients
-
-
     ros::AsyncSpinner spinner(1);
     spinner.start();
-    
 
     /**************************
      * Setup
@@ -140,97 +135,29 @@ int main(int argc, char* argv[])
     // add collision object / brick
 
     addBrick(planning_scene_interface, brick_start_loc, brick_start_orient);
+    pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the arm to the brick");
 
+    // find the brick
 
-    /*************************
-    * Planning to a Pose goal
-    * **********************/
+    moveArm(arm_move_group_interface, brick_start_loc, brick_start_orient);
+    pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the brick to the goal location");
 
-    ROS_INFO_STREAM("+++++++ Planning to a Pose goal +++++++");
+    // // open the pincer to grab the brick
+    // openPincer(pincer_move_group_interface, pincer_model_group);
 
-    // Plan a motion for this group to a desired pose for the end-effector
-
-    geometry_msgs::Pose target_pose1;
-
-    tf2::Quaternion pose1_quat;
-    pose1_quat.setRPY(PI/2, PI/2, 0);
-    geometry_msgs::Quaternion pose1_quat_msg = tf2::toMsg(pose1_quat);
-
-    target_pose1.orientation = pose1_quat_msg;
-    target_pose1.position.x = brick_start_loc[0];
-    target_pose1.position.y = brick_start_loc[1];
-    target_pose1.position.z = brick_start_loc[2] + 0.05;
-    arm_move_group_interface.setPoseTarget(target_pose1);
-
-    // Call the planner to compute the plan and visualize it
-    moveit::planning_interface::MoveGroupInterface::Plan plan1;
-    bool success = (arm_move_group_interface.plan(plan1) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-
-    ROS_INFO_NAMED("tutorial", "Visualizing plan 1 (pose goal) %s", success ? "" : "FAILED");
-
-    ROS_INFO_STREAM("+++++++ Finishing Planning to a Pose goal +++++++");
-
-    /***********************
-     * Visualizing Plans
-     * ********************/
-
-    ROS_INFO_NAMED("tutorial", "Visualizing plan 1 as trajectory line");
-    visual_tools.publishAxisLabeled(target_pose1, "pose1");
-    visual_tools.publishText(text_pose, "Pose Goal", rvt::WHITE, rvt::XLARGE);
-    visual_tools.publishTrajectoryLine(plan1.trajectory_, arm_model_group);
-
-    visual_tools.trigger();
-
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
-
-    /***********************
-     * Moving to a pose goal
-     * ********************/
-
-    arm_move_group_interface.move();
-
-    /***********************
-     * Planning to a Joint-Space goal
-     * ********************/
-
-    // RobotState object contains current position/velocity/acceleration data
-    moveit::core::RobotStatePtr pincer_current_state = pincer_move_group_interface.getCurrentState();
-
-    // get current set of joint values for pincer
-    std::vector<double> pincer_joint_group_positions;
-    pincer_current_state->copyJointGroupPositions(pincer_model_group, pincer_joint_group_positions);
-
-    for (auto dub : pincer_joint_group_positions)
-    {
-        ROS_INFO_STREAM(dub);
-    }
-
-    // modify joints, plan to the new joint space goal and visualize the plan
-    pincer_joint_group_positions[1] = -0.5;
-    pincer_joint_group_positions[2] = 0.5;
-    pincer_move_group_interface.setJointValueTarget(pincer_joint_group_positions);
-
-    moveit::planning_interface::MoveGroupInterface::Plan plan2;
-    success = (pincer_move_group_interface.plan(plan2) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-    ROS_INFO_NAMED("tutorial", "Visualizing plan (joint space goal) %s", success ? "" : "FAILED");
-
-    pincer_visual_tools.publishText(text_pose, "Joint Space Goal", rvt::WHITE, rvt::XLARGE);
-    pincer_visual_tools.publishTrajectoryLine(plan2.trajectory_, pincer_model_group);
-    pincer_visual_tools.trigger();
-    pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
-    
-    pincer_move_group_interface.move();
+    moveArm(arm_move_group_interface, brick_goal_loc, brick_goal_orient);
+    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to shut down");
 
     ros::shutdown();
     return 0;
 }
 
+/// \brief a function that adds a brick as a collision object to the MoveIt planning scene
+/// \param planning_scene_interface
+/// \param brick_loc : the location of the brick to be added
+/// \param brick_orient : the orientation of the brick to be added
 void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, std::vector<double> brick_loc, std::vector<double> brick_orient)
 {
-     /***********************
-     * Adding a Collision Object
-     * ********************/
-
     moveit_msgs::CollisionObject collision_object;
     collision_object.header.frame_id = "base_link";
 
@@ -266,3 +193,85 @@ void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene
     // add the collision object into the world
     planning_scene_interface.addCollisionObjects(collision_objects);
 }
+
+/// \brief a function that finds a brick designated by location and orientation
+/// \param move_group_interface
+/// \param brick_loc : the location of the brick to find
+/// \param brick_orient : the orientation of the btrick to find
+void moveArm(moveit::planning_interface::MoveGroupInterface& move_group_interface, std::vector<double> brick_loc, std::vector<double> brick_orient)
+{
+    ROS_INFO_STREAM("+++++++ Planning to pose goal +++++++");
+
+    // Plan a motion for this group to a desired pose for the end-effector
+    geometry_msgs::Pose target_pose;
+
+    tf2::Quaternion pose_quat;
+    pose_quat.setRPY(PI/2, PI/2, 0);
+    geometry_msgs::Quaternion pose_quat_msg = tf2::toMsg(pose_quat);
+
+    target_pose.orientation = pose_quat_msg;
+    target_pose.position.x = brick_loc[0];
+    target_pose.position.y = brick_loc[1];
+    target_pose.position.z = brick_loc[2] + 0.05;
+    move_group_interface.setPoseTarget(target_pose);
+
+    // Call the planner to compute the plan and visualize it
+    moveit::planning_interface::MoveGroupInterface::Plan plan;
+    bool success = (move_group_interface.plan(plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+
+    ROS_INFO_NAMED("tutorial", "Visualizing plan 1 (pose goal) %s", success ? "" : "FAILED");
+
+    // /***********************
+    //  * Visualizing Plans
+    //  * ********************/
+
+    // ROS_INFO_NAMED("tutorial", "Visualizing plan 1 as trajectory line");
+    // visual_tools.publishAxisLabeled(target_pose1, "pose1");
+    // visual_tools.publishText(text_pose, "Pose Goal", rvt::WHITE, rvt::XLARGE);
+    // visual_tools.publishTrajectoryLine(plan1.trajectory_, arm_model_group);
+
+    // visual_tools.trigger();
+
+    // visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
+
+    // moving to pose goal
+    move_group_interface.move();
+
+    ROS_INFO_STREAM("+++++++ Moved the arm!! +++++++");
+}
+
+/// \brief a function that opens the adroit pincers
+/// \param move_group_interface
+/// \param model_group
+void openPincer(moveit::planning_interface::MoveGroupInterface& move_group_interface, const moveit::core::JointModelGroup* model_group)
+{
+    ROS_INFO_STREAM("+++++++ Opening pincers!! +++++++");
+
+    // RobotState object contains current position/velocity/acceleration data
+    moveit::core::RobotStatePtr current_state = move_group_interface.getCurrentState();
+
+    // get current set of joint values for pincer
+    std::vector<double> joint_positions;
+    current_state->copyJointGroupPositions(model_group, joint_positions);
+
+    for (auto dub : joint_positions)
+    {
+        ROS_INFO_STREAM(dub);
+    }
+
+    // modify joints, plan to the new joint space goal and visualize the plan
+    joint_positions[0] = 0.2;
+    move_group_interface.setJointValueTarget(joint_positions);
+
+    moveit::planning_interface::MoveGroupInterface::Plan plan2;
+    bool success = (move_group_interface.plan(plan2) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+    ROS_INFO_NAMED("tutorial", "Visualizing plan (joint space goal) %s", success ? "" : "FAILED");
+
+    // pincer_visual_tools.publishText(text_pose, "Joint Space Goal", rvt::WHITE, rvt::XLARGE);
+    // pincer_visual_tools.publishTrajectoryLine(plan2.trajectory_, pincer_model_group);
+    // pincer_visual_tools.trigger();
+    // pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
+    
+    move_group_interface.move();
+}
+
