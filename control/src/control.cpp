@@ -24,6 +24,17 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+
+/********************
+ * Global Variables
+ * *****************/
+std::vector<double> brick_dimensions;
+
+/********************
+ * Helper Functions
+ * *****************/
+void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, std::vector<double> brick_dims, std::vector<double> brick_orient);
+
 int main(int argc, char* argv[])
 {
 
@@ -39,7 +50,6 @@ int main(int argc, char* argv[])
 
     ros::Rate loop_rate(100);
     int frequency;
-    std::vector<double> brick_dimensions;
     std::vector<double> brick_start_loc, brick_start_orient;
     std::vector<double> brick_goal_loc, brick_goal_orient;
 
@@ -127,48 +137,10 @@ int main(int argc, char* argv[])
 
     ROS_INFO_STREAM("+++++++ Finished getting basic information +++++++");
 
-    /***********************
-     * Adding a Collision Object
-     * ********************/
+    // add collision object / brick
 
-    moveit_msgs::CollisionObject collision_object;
-    collision_object.header.frame_id = arm_move_group_interface.getPlanningFrame();
+    addBrick(planning_scene_interface, brick_start_loc, brick_start_orient);
 
-    collision_object.id = "brick1";
-
-    // Define a box to add to the world
-    shape_msgs::SolidPrimitive primitive;
-    primitive.type = primitive.BOX;
-    primitive.dimensions.resize(3);
-    primitive.dimensions[primitive.BOX_X] = brick_dimensions[0];
-    primitive.dimensions[primitive.BOX_Y] = brick_dimensions[1];
-    primitive.dimensions[primitive.BOX_Z] = brick_dimensions[2];
-
-    // Define a pose for the box (specified relative to frame_id)
-    geometry_msgs::Pose brick_pose;
-
-    tf2::Quaternion brick_start_quat;
-    brick_start_quat.setRPY(brick_start_orient[0], brick_start_orient[1], brick_start_orient[2]);
-    geometry_msgs::Quaternion brick_start_quat_msg = tf2::toMsg(brick_start_quat);
-
-    brick_pose.orientation = brick_start_quat_msg;
-    brick_pose.position.x = brick_start_loc[0];
-    brick_pose.position.y = brick_start_loc[1];
-    brick_pose.position.z = brick_start_loc[2];
-
-    collision_object.primitives.push_back(primitive);
-    collision_object.primitive_poses.push_back(brick_pose);
-    collision_object.operation = collision_object.ADD;
-
-    std::vector<moveit_msgs::CollisionObject> collision_objects;
-    collision_objects.push_back(collision_object);
-
-    // add the collision object into the world
-    planning_scene_interface.addCollisionObjects(collision_objects);
-
-    visual_tools.publishText(text_pose, "Add object", rvt::WHITE, rvt::XLARGE);
-    visual_tools.trigger();
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to once the collision object appears in RViz");
 
     /*************************
     * Planning to a Pose goal
@@ -177,8 +149,6 @@ int main(int argc, char* argv[])
     ROS_INFO_STREAM("+++++++ Planning to a Pose goal +++++++");
 
     // Plan a motion for this group to a desired pose for the end-effector
-    // ADD SMALLER JOINT LIMITS
-    // PLAN FOR POSITION INSTEAD OF POSE
 
     geometry_msgs::Pose target_pose1;
 
@@ -253,4 +223,46 @@ int main(int argc, char* argv[])
 
     ros::shutdown();
     return 0;
+}
+
+void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, std::vector<double> brick_loc, std::vector<double> brick_orient)
+{
+     /***********************
+     * Adding a Collision Object
+     * ********************/
+
+    moveit_msgs::CollisionObject collision_object;
+    collision_object.header.frame_id = "base_link";
+
+    collision_object.id = "brick1";
+
+    // Define a box to add to the world
+    shape_msgs::SolidPrimitive primitive;
+    primitive.type = primitive.BOX;
+    primitive.dimensions.resize(3);
+    primitive.dimensions[primitive.BOX_X] = brick_dimensions[0];
+    primitive.dimensions[primitive.BOX_Y] = brick_dimensions[1];
+    primitive.dimensions[primitive.BOX_Z] = brick_dimensions[2];
+
+    // Define a pose for the box (specified relative to frame_id)
+    geometry_msgs::Pose brick_pose;
+
+    tf2::Quaternion brick_quat;
+    brick_quat.setRPY(brick_orient[0], brick_orient[1], brick_orient[2]);
+    geometry_msgs::Quaternion brick_quat_msg = tf2::toMsg(brick_quat);
+
+    brick_pose.orientation = brick_quat_msg;
+    brick_pose.position.x = brick_loc[0];
+    brick_pose.position.y = brick_loc[1];
+    brick_pose.position.z = brick_loc[2];
+
+    collision_object.primitives.push_back(primitive);
+    collision_object.primitive_poses.push_back(brick_pose);
+    collision_object.operation = collision_object.ADD;
+
+    std::vector<moveit_msgs::CollisionObject> collision_objects;
+    collision_objects.push_back(collision_object);
+
+    // add the collision object into the world
+    planning_scene_interface.addCollisionObjects(collision_objects);
 }
