@@ -1,1 +1,9 @@
 frequency: 100
+
+brick_dimensions: [0.092075, 0.193675, 0.05715]
+
+brick_start_location: [0.0, 0.25, 0.028575]
+brick_start_orientation: [0.0, 0.0, 0.0]
+
+brick_goal_location: [0.0, -0.25, 0.028575]
+brick_goal_orientation: [0.0, 0.0, 0.0]
