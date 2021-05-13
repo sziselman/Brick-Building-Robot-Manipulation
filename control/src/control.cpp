@@ -34,9 +34,13 @@ static constexpr double PI=3.14159265358979323846;
 /********************
  * Helper Functions
  * *****************/
-void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, std::vector<double> brick_loc, std::vector<double> brick_orient);
+void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, std::vector<double> brick_loc, std::vector<double> brick_orient, std::string brick_id);
 void moveArm(moveit::planning_interface::MoveGroupInterface& move_group_interface, std::vector<double> brick_loc, std::vector<double> brick_orient);
-void openPincer(moveit::planning_interface::MoveGroupInterface& move_group_interface, const moveit::core::JointModelGroup* model_group);
+void openPincer(trajectory_msgs::JointTrajectory& posture);
+void closePincer(trajectory_msgs::JointTrajectory& posture);
+void pickBrick(moveit::planning_interface::MoveGroupInterface& move_group, std::vector<double> brick_loc, std::vector<double> brick_orient, std::string brick_id);
+void placeBrick(moveit::planning_interface::MoveGroupInterface& move_group, std::vector<double> brick_loc, std::vector<double>brick_orient, std::string brick_id);
+
 
 int main(int argc, char* argv[])
 {
@@ -96,7 +100,7 @@ int main(int argc, char* argv[])
     namespace rvt = rviz_visual_tools;
 
     // ARE THESE THE CORRECT JOINT NAMES WHEN VISUALIZING THE ARM AND PINCER??
-    moveit_visual_tools::MoveItVisualTools visual_tools("joint1");
+    moveit_visual_tools::MoveItVisualTools visual_tools("base_link");
     moveit_visual_tools::MoveItVisualTools pincer_visual_tools("pincer_joint");
 
     visual_tools.deleteAllMarkers();
@@ -112,41 +116,30 @@ int main(int argc, char* argv[])
 
     ROS_INFO_STREAM("+++++++ VISUALIZATION COMPLETE +++++++");
 
-
-    // /*************************
-    //  * Getting Basic Information
-    //  * **********************/
-
-    ROS_INFO_STREAM("+++++++ Getting basic information +++++++");
-
-    // We can print the name of the reference frame for this robot.
-    ROS_INFO_NAMED("tutorial", "Arm planning frame: %s", arm_move_group_interface.getPlanningFrame().c_str());
-    
-    // We can also print the name of the end-effector link for this group.
-    ROS_INFO_NAMED("tutorial", "Arm end effector link: %s", arm_move_group_interface.getEndEffectorLink().c_str());
-    
-    // We can get a list of all the groups in the robot:
-    ROS_INFO_NAMED("tutorial", "Available Planning Groups:");
-    std::copy(arm_move_group_interface.getJointModelGroupNames().begin(),
-              arm_move_group_interface.getJointModelGroupNames().end(), std::ostream_iterator<std::string>(std::cout, ", "));
-
-    ROS_INFO_STREAM("+++++++ Finished getting basic information +++++++");
-
     // add collision object / brick
-
-    addBrick(planning_scene_interface, brick_start_loc, brick_start_orient);
+    std::string brick1_id = "brick1";
+    addBrick(planning_scene_interface, brick_start_loc, brick_start_orient, brick1_id);
     pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the arm to the brick");
 
     // find the brick
+    // moveArm(arm_move_group_interface, brick_start_loc, brick_start_orient);
+    // pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to pick up the brick");
 
-    moveArm(arm_move_group_interface, brick_start_loc, brick_start_orient);
-    pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the brick to the goal location");
+    // open the pincer to grab the brick
+    pickBrick(arm_move_group_interface, brick_start_loc, brick_start_orient, brick1_id);
+    pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the arm");
+    
+    // attach the brick to the robot
+    // arm_move_group_interface.attachObject("brick1");
+    
+    // // move the arm to the brick's goal location
+    // moveArm(arm_move_group_interface, brick_goal_loc, brick_goal_orient);
+    // visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to place the brick down");
 
-    // // open the pincer to grab the brick
-    // openPincer(pincer_move_group_interface, pincer_model_group);
-
-    moveArm(arm_move_group_interface, brick_goal_loc, brick_goal_orient);
+    // detach the brick from the robot
+    placeBrick(arm_move_group_interface, brick_goal_loc, brick_goal_orient, brick1_id);
     visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to shut down");
+    // arm_move_group_interface.detachObject("brick1");
 
     ros::shutdown();
     return 0;
@@ -156,12 +149,12 @@ int main(int argc, char* argv[])
 /// \param planning_scene_interface
 /// \param brick_loc : the location of the brick to be added
 /// \param brick_orient : the orientation of the brick to be added
-void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, std::vector<double> brick_loc, std::vector<double> brick_orient)
+void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, std::vector<double> brick_loc, std::vector<double> brick_orient, std::string brick_id)
 {
     moveit_msgs::CollisionObject collision_object;
     collision_object.header.frame_id = "base_link";
 
-    collision_object.id = "brick1";
+    collision_object.id = brick_id;
 
     // Define a box to add to the world
     shape_msgs::SolidPrimitive primitive;
@@ -206,13 +199,13 @@ void moveArm(moveit::planning_interface::MoveGroupInterface& move_group_interfac
     geometry_msgs::Pose target_pose;
 
     tf2::Quaternion pose_quat;
-    pose_quat.setRPY(PI/2, PI/2, 0);
+    pose_quat.setRPY(PI/2, PI/2, brick_orient[2]);
     geometry_msgs::Quaternion pose_quat_msg = tf2::toMsg(pose_quat);
 
     target_pose.orientation = pose_quat_msg;
     target_pose.position.x = brick_loc[0];
     target_pose.position.y = brick_loc[1];
-    target_pose.position.z = brick_loc[2] + 0.05;
+    target_pose.position.z = brick_loc[2] + 0.1;
     move_group_interface.setPoseTarget(target_pose);
 
     // Call the planner to compute the plan and visualize it
@@ -221,19 +214,6 @@ void moveArm(moveit::planning_interface::MoveGroupInterface& move_group_interfac
 
     ROS_INFO_NAMED("tutorial", "Visualizing plan 1 (pose goal) %s", success ? "" : "FAILED");
 
-    // /***********************
-    //  * Visualizing Plans
-    //  * ********************/
-
-    // ROS_INFO_NAMED("tutorial", "Visualizing plan 1 as trajectory line");
-    // visual_tools.publishAxisLabeled(target_pose1, "pose1");
-    // visual_tools.publishText(text_pose, "Pose Goal", rvt::WHITE, rvt::XLARGE);
-    // visual_tools.publishTrajectoryLine(plan1.trajectory_, arm_model_group);
-
-    // visual_tools.trigger();
-
-    // visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
-
     // moving to pose goal
     move_group_interface.move();
 
@@ -241,37 +221,106 @@ void moveArm(moveit::planning_interface::MoveGroupInterface& move_group_interfac
 }
 
 /// \brief a function that opens the adroit pincers
-/// \param move_group_interface
-/// \param model_group
-void openPincer(moveit::planning_interface::MoveGroupInterface& move_group_interface, const moveit::core::JointModelGroup* model_group)
+void openPincer(trajectory_msgs::JointTrajectory& posture)
 {
-    ROS_INFO_STREAM("+++++++ Opening pincers!! +++++++");
+    // Add pincer finger joints of adroit arm to posture
+    posture.joint_names.resize(2);
+    posture.joint_names[0] = "pincerfinger_left";
+    posture.joint_names[1] = "pincerfinger_right";
 
-    // RobotState object contains current position/velocity/acceleration data
-    moveit::core::RobotStatePtr current_state = move_group_interface.getCurrentState();
-
-    // get current set of joint values for pincer
-    std::vector<double> joint_positions;
-    current_state->copyJointGroupPositions(model_group, joint_positions);
-
-    for (auto dub : joint_positions)
-    {
-        ROS_INFO_STREAM(dub);
-    }
-
-    // modify joints, plan to the new joint space goal and visualize the plan
-    joint_positions[0] = 0.2;
-    move_group_interface.setJointValueTarget(joint_positions);
-
-    moveit::planning_interface::MoveGroupInterface::Plan plan2;
-    bool success = (move_group_interface.plan(plan2) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-    ROS_INFO_NAMED("tutorial", "Visualizing plan (joint space goal) %s", success ? "" : "FAILED");
-
-    // pincer_visual_tools.publishText(text_pose, "Joint Space Goal", rvt::WHITE, rvt::XLARGE);
-    // pincer_visual_tools.publishTrajectoryLine(plan2.trajectory_, pincer_model_group);
-    // pincer_visual_tools.trigger();
-    // pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
-    
-    move_group_interface.move();
+    // Set pincer finger joints as open, wide enough for the object to fit
+    posture.points.resize(1);
+    posture.points[0].positions.resize(2);
+    posture.points[0].positions[0] = 0.4;
+    posture.points[0].positions[1] = 0.4;
+    posture.points[0].time_from_start = ros::Duration(0.5);
 }
 
+/// \brief a function that closes the adroit pincers
+void closePincer(trajectory_msgs::JointTrajectory& posture)
+{
+    // add pincer finger joints of adroit arm to posture
+    posture.joint_names.resize(2);
+    posture.joint_names[0] = "pincerfinger_left";
+    posture.joint_names[1] = "pincerfinger_right";
+
+    // set pincer figure joints as closed
+    posture.points.resize(1);
+    posture.points[0].positions.resize(2);
+    posture.points[0].positions[0] = 0.0;
+    posture.points[0].positions[1] = 0.0;
+    posture.points[0].time_from_start = ros::Duration(0.5);
+}
+
+void pickBrick(moveit::planning_interface::MoveGroupInterface& move_group, std::vector<double> brick_loc, std::vector<double> brick_orient, std::string brick_id)
+{
+    // create a vector of grasps to be attempted
+    std::vector<moveit_msgs::Grasp> grasps;
+    grasps.resize(1);
+
+    // set the grasp pose
+    grasps[0].grasp_pose.header.frame_id = "base_link";
+    tf2::Quaternion orientation;
+    orientation.setRPY(PI/2, PI/2, brick_orient[2]);
+
+    grasps[0].grasp_pose.pose.orientation = tf2::toMsg(orientation);
+    grasps[0].grasp_pose.pose.position.x = brick_loc[0];
+    grasps[0].grasp_pose.pose.position.y = brick_loc[1];
+    grasps[0].grasp_pose.pose.position.z = brick_loc[2];
+
+    // setting pre-grasp approach
+    grasps[0].pre_grasp_approach.direction.header.frame_id = "base_link";
+    grasps[0].pre_grasp_approach.direction.vector.z = -1.0;
+    grasps[0].pre_grasp_approach.min_distance = 0.1;
+    grasps[0].pre_grasp_approach.desired_distance = 0.5;
+
+    // setting post-grasp retreat
+    grasps[0].post_grasp_retreat.direction.header.frame_id = "base_link";
+    grasps[0].post_grasp_retreat.direction.vector.z = 1.0;
+    grasps[0].post_grasp_retreat.min_distance = 0.1;
+    grasps[0].post_grasp_retreat.desired_distance = 0.5;
+
+    // setting posture of end-effector before grasp
+    openPincer(grasps[0].pre_grasp_posture);
+
+    // setting posture of end-effector during grasp
+    closePincer(grasps[0].grasp_posture);
+
+    move_group.pick(brick_id, grasps);
+}
+
+void placeBrick(moveit::planning_interface::MoveGroupInterface& move_group, std::vector<double> brick_loc, std::vector<double>brick_orient, std::string brick_id)
+{
+    // a vector of placings to be attempted
+    std::vector<moveit_msgs::PlaceLocation> place_location;
+    place_location.resize(1);
+
+    // setting place location pose
+    place_location[0].place_pose.header.frame_id = "base_link";
+    tf2::Quaternion orientation;
+    orientation.setRPY(PI/2, PI/2, brick_orient[2]);
+
+    place_location[0].place_pose.pose.orientation = tf2::toMsg(orientation);
+
+    // placing brick at the exact location of the center of the object
+    place_location[0].place_pose.pose.position.x = brick_loc[0];
+    place_location[0].place_pose.pose.position.y = brick_loc[1];
+    place_location[0].place_pose.pose.position.z = brick_loc[2];
+
+    // setting pre-place approach
+    place_location[0].pre_place_approach.direction.header.frame_id = "base_link";
+    place_location[0].pre_place_approach.direction.vector.z = -1.0;
+    place_location[0].pre_place_approach.min_distance = 0.1;
+    place_location[0].pre_place_approach.desired_distance = 0.5;
+
+    // setting post-grasp retreat
+    place_location[0].post_place_retreat.direction.header.frame_id = "base_link";
+    place_location[0].post_place_retreat.direction.vector.z = 1.0;
+    place_location[0].post_place_retreat.min_distance = 0.1;
+    place_location[0].post_place_retreat.desired_distance = 0.5;
+
+    // setting posture of end-effector after placing object
+    openPincer(place_location[0].post_place_posture);
+
+    move_group.place(brick_id, place_location);
+}
