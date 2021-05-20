@@ -9,12 +9,13 @@ project(control)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
-  roscpp
-  rospy
-  std_msgs
+  moveit_msgs
   moveit_ros_planning_interface
   moveit_visual_tools
+  roscpp
+  rospy
   rviz_visual_tools
+  std_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -137,7 +138,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(arm_control src/control.cpp)
+add_executable(arm_${PROJECT_NAME} src/${PROJECT_NAME}.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -150,7 +151,7 @@ add_executable(arm_control src/control.cpp)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(arm_control
+target_link_libraries(arm_${PROJECT_NAME}
   ${catkin_LIBRARIES}
 )
 
@@ -170,13 +171,13 @@ target_link_libraries(arm_control
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
-install(TARGETS arm_control
+install(TARGETS arm_${PROJECT_NAME}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 ## Mark libraries for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
-install(TARGETS arm_control
+install(TARGETS arm_${PROJECT_NAME}
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}

@@ -12,6 +12,7 @@
 
 #include <moveit_msgs/DisplayRobotState.h>
 #include <moveit_msgs/DisplayTrajectory.h>
+#include <moveit_msgs/Grasp.h>
 
 #include <moveit_msgs/AttachedCollisionObject.h>
 #include <moveit_msgs/CollisionObject.h>
@@ -23,24 +24,24 @@
 
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <std_msgs/Float64.h>
 
 
 /********************
  * Global Variables
  * *****************/
 std::vector<double> brick_dimensions;
+std::vector<double> jackal_dimensions;
 static constexpr double PI=3.14159265358979323846;
+ros::Publisher pincer_pub;
 
 /********************
  * Helper Functions
  * *****************/
 void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, std::vector<double> brick_loc, std::vector<double> brick_orient, std::string brick_id);
 void moveArm(moveit::planning_interface::MoveGroupInterface& move_group_interface, std::vector<double> brick_loc, std::vector<double> brick_orient);
-void openPincer(trajectory_msgs::JointTrajectory& posture);
-void closePincer(trajectory_msgs::JointTrajectory& posture);
-void pickBrick(moveit::planning_interface::MoveGroupInterface& move_group, std::vector<double> brick_loc, std::vector<double> brick_orient, std::string brick_id);
-void placeBrick(moveit::planning_interface::MoveGroupInterface& move_group, std::vector<double> brick_loc, std::vector<double>brick_orient, std::string brick_id);
-
+void movePincer(moveit::planning_interface::MoveGroupInterface& move_group, const moveit::core::JointModelGroup* joint_model_group, double joint_angle);
+void pincerAngle(std_msgs::Float64 angle);
 
 int main(int argc, char* argv[])
 {
@@ -55,15 +56,20 @@ int main(int argc, char* argv[])
     int frequency;
     std::vector<double> brick_start_loc, brick_start_orient;
     std::vector<double> brick_goal_loc, brick_goal_orient;
+    std_msgs::Float64 open_angle;
+    open_angle.data = 0.90;
 
     // Read parameters from parameter server
 
     n.getParam("frequency", frequency);
     n.getParam("brick_dimensions", brick_dimensions);
+    n.getParam("jackal_dimensions", jackal_dimensions);
     n.getParam("brick_start_location", brick_start_loc);
     n.getParam("brick_start_orientation", brick_start_orient);
     n.getParam("brick_goal_location", brick_goal_loc);
     n.getParam("brick_goal_orientation", brick_goal_orient);
+
+    pincer_pub = n.advertise<std_msgs::Float64>("/hdt_arm/pincer_joint_position_controller/command", 10);
 
     ros::AsyncSpinner spinner(1);
     spinner.start();
@@ -116,30 +122,35 @@ int main(int argc, char* argv[])
 
     ROS_INFO_STREAM("+++++++ VISUALIZATION COMPLETE +++++++");
 
-    // add collision object / brick
+    // ADD COLLISION OBJECT / BRICK
     std::string brick1_id = "brick1";
     addBrick(planning_scene_interface, brick_start_loc, brick_start_orient, brick1_id);
     pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the arm to the brick");
 
-    // find the brick
-    // moveArm(arm_move_group_interface, brick_start_loc, brick_start_orient);
-    // pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to pick up the brick");
+    // MOVE ARM TO THE BRICK START LOCATION
+    moveArm(arm_move_group_interface, brick_start_loc, brick_start_orient);
+    pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to open the pincers");
 
-    // open the pincer to grab the brick
-    pickBrick(arm_move_group_interface, brick_start_loc, brick_start_orient, brick1_id);
-    pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the arm");
-    
-    // attach the brick to the robot
-    // arm_move_group_interface.attachObject("brick1");
-    
-    // // move the arm to the brick's goal location
-    // moveArm(arm_move_group_interface, brick_goal_loc, brick_goal_orient);
-    // visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to place the brick down");
+    // OPEN THE PINCERS
+    // movePincer(pincer_move_group_interface, pincer_model_group, 0.9);
+    pincerAngle(open_angle);
+    pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to close the pincers");
 
-    // detach the brick from the robot
-    placeBrick(arm_move_group_interface, brick_goal_loc, brick_goal_orient, brick1_id);
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to shut down");
-    // arm_move_group_interface.detachObject("brick1");
+    // // CLOSE THE PINCERS ON THE BRICK
+    // movePincer(pincer_move_group_interface, pincer_model_group, 0.3);
+
+    // ATTACH THE BRICK TO THE ROBOT
+    arm_move_group_interface.attachObject("brick1");
+    pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the arm to the goal location");
+    
+    // MOVE ARM TO BRICK GOAL LOCATION
+    moveArm(arm_move_group_interface, brick_goal_loc, brick_goal_orient);
+    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to place the brick");
+
+    // DETACH THE BRICK FROM THE ROBOT
+    arm_move_group_interface.detachObject("brick1");
+    // movePincer(pincer_move_group_interface, pincer_model_group, 0.9);
+    pincer_visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to end the pick and place");
 
     ros::shutdown();
     return 0;
@@ -151,6 +162,36 @@ int main(int argc, char* argv[])
 /// \param brick_orient : the orientation of the brick to be added
 void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, std::vector<double> brick_loc, std::vector<double> brick_orient, std::string brick_id)
 {
+    moveit_msgs::CollisionObject jackal_collision_object;
+    jackal_collision_object.header.frame_id = "base_link";
+    jackal_collision_object.id = "jackal";
+
+    // Define a box to represent the jackal
+    shape_msgs::SolidPrimitive jackal;
+    jackal.type = jackal.BOX;
+    jackal.dimensions.resize(3);
+    jackal.dimensions[jackal.BOX_X] = jackal_dimensions[0];
+    jackal.dimensions[jackal.BOX_Y] = jackal_dimensions[1];
+    jackal.dimensions[jackal.BOX_Z] = jackal_dimensions[2];
+
+    // Define a pose for the jackal
+    geometry_msgs::Pose jackal_pose;
+
+    tf2::Quaternion jackal_quat;
+    jackal_quat.setRPY(0.0, 0.0, 0.0);
+
+    jackal_pose.orientation = tf2::toMsg(jackal_quat);
+    jackal_pose.position.x = 0.356 - jackal_dimensions[0]/2;
+    jackal_pose.position.y = 0.0;
+    jackal_pose.position.z = -jackal_dimensions[2]/2;
+
+    jackal_collision_object.primitives.push_back(jackal);
+    jackal_collision_object.primitive_poses.push_back(jackal_pose);
+    jackal_collision_object.operation = jackal_collision_object.ADD;
+
+    std::vector<moveit_msgs::CollisionObject> collision_objects;
+    collision_objects.push_back(jackal_collision_object);
+
     moveit_msgs::CollisionObject collision_object;
     collision_object.header.frame_id = "base_link";
 
@@ -169,9 +210,8 @@ void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene
 
     tf2::Quaternion brick_quat;
     brick_quat.setRPY(brick_orient[0], brick_orient[1], brick_orient[2]);
-    geometry_msgs::Quaternion brick_quat_msg = tf2::toMsg(brick_quat);
 
-    brick_pose.orientation = brick_quat_msg;
+    brick_pose.orientation = tf2::toMsg(brick_quat);
     brick_pose.position.x = brick_loc[0];
     brick_pose.position.y = brick_loc[1];
     brick_pose.position.z = brick_loc[2];
@@ -180,8 +220,7 @@ void addBrick(moveit::planning_interface::PlanningSceneInterface& planning_scene
     collision_object.primitive_poses.push_back(brick_pose);
     collision_object.operation = collision_object.ADD;
 
-    std::vector<moveit_msgs::CollisionObject> collision_objects;
-    collision_objects.push_back(collision_object);
+    collision_objects.push_back(jackal_collision_object);
 
     // add the collision object into the world
     planning_scene_interface.addCollisionObjects(collision_objects);
@@ -220,107 +259,27 @@ void moveArm(moveit::planning_interface::MoveGroupInterface& move_group_interfac
     ROS_INFO_STREAM("+++++++ Moved the arm!! +++++++");
 }
 
-/// \brief a function that opens the adroit pincers
-void openPincer(trajectory_msgs::JointTrajectory& posture)
+void movePincer(moveit::planning_interface::MoveGroupInterface& move_group, const moveit::core::JointModelGroup* joint_model_group, double joint_angle)
 {
-    // Add pincer finger joints of adroit arm to posture
-    posture.joint_names.resize(2);
-    posture.joint_names[0] = "pincerfinger_left";
-    posture.joint_names[1] = "pincerfinger_right";
+    // a pointer that references the current robot's states
+    moveit::core::RobotStatePtr current_state = move_group.getCurrentState();
+    // get the current set of joint values for the group
+    std::vector<double> joint_group_positions;
+    current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
 
-    // Set pincer finger joints as open, wide enough for the object to fit
-    posture.points.resize(1);
-    posture.points[0].positions.resize(2);
-    posture.points[0].positions[0] = 0.4;
-    posture.points[0].positions[1] = 0.4;
-    posture.points[0].time_from_start = ros::Duration(0.5);
+    // modify the first joint position
+    joint_group_positions[0] =joint_angle;
+
+    // pass the desired joint positions to move_group as goal for planning
+    move_group.setJointValueTarget(joint_group_positions);
+
+    moveit::planning_interface::MoveGroupInterface::Plan plan;
+    bool success = (move_group.plan(plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+
+    move_group.move(); 
 }
 
-/// \brief a function that closes the adroit pincers
-void closePincer(trajectory_msgs::JointTrajectory& posture)
+void pincerAngle(std_msgs::Float64 angle)
 {
-    // add pincer finger joints of adroit arm to posture
-    posture.joint_names.resize(2);
-    posture.joint_names[0] = "pincerfinger_left";
-    posture.joint_names[1] = "pincerfinger_right";
-
-    // set pincer figure joints as closed
-    posture.points.resize(1);
-    posture.points[0].positions.resize(2);
-    posture.points[0].positions[0] = 0.0;
-    posture.points[0].positions[1] = 0.0;
-    posture.points[0].time_from_start = ros::Duration(0.5);
-}
-
-void pickBrick(moveit::planning_interface::MoveGroupInterface& move_group, std::vector<double> brick_loc, std::vector<double> brick_orient, std::string brick_id)
-{
-    // create a vector of grasps to be attempted
-    std::vector<moveit_msgs::Grasp> grasps;
-    grasps.resize(1);
-
-    // set the grasp pose
-    grasps[0].grasp_pose.header.frame_id = "base_link";
-    tf2::Quaternion orientation;
-    orientation.setRPY(PI/2, PI/2, brick_orient[2]);
-
-    grasps[0].grasp_pose.pose.orientation = tf2::toMsg(orientation);
-    grasps[0].grasp_pose.pose.position.x = brick_loc[0];
-    grasps[0].grasp_pose.pose.position.y = brick_loc[1];
-    grasps[0].grasp_pose.pose.position.z = brick_loc[2];
-
-    // setting pre-grasp approach
-    grasps[0].pre_grasp_approach.direction.header.frame_id = "base_link";
-    grasps[0].pre_grasp_approach.direction.vector.z = -1.0;
-    grasps[0].pre_grasp_approach.min_distance = 0.1;
-    grasps[0].pre_grasp_approach.desired_distance = 0.5;
-
-    // setting post-grasp retreat
-    grasps[0].post_grasp_retreat.direction.header.frame_id = "base_link";
-    grasps[0].post_grasp_retreat.direction.vector.z = 1.0;
-    grasps[0].post_grasp_retreat.min_distance = 0.1;
-    grasps[0].post_grasp_retreat.desired_distance = 0.5;
-
-    // setting posture of end-effector before grasp
-    openPincer(grasps[0].pre_grasp_posture);
-
-    // setting posture of end-effector during grasp
-    closePincer(grasps[0].grasp_posture);
-
-    move_group.pick(brick_id, grasps);
-}
-
-void placeBrick(moveit::planning_interface::MoveGroupInterface& move_group, std::vector<double> brick_loc, std::vector<double>brick_orient, std::string brick_id)
-{
-    // a vector of placings to be attempted
-    std::vector<moveit_msgs::PlaceLocation> place_location;
-    place_location.resize(1);
-
-    // setting place location pose
-    place_location[0].place_pose.header.frame_id = "base_link";
-    tf2::Quaternion orientation;
-    orientation.setRPY(PI/2, PI/2, brick_orient[2]);
-
-    place_location[0].place_pose.pose.orientation = tf2::toMsg(orientation);
-
-    // placing brick at the exact location of the center of the object
-    place_location[0].place_pose.pose.position.x = brick_loc[0];
-    place_location[0].place_pose.pose.position.y = brick_loc[1];
-    place_location[0].place_pose.pose.position.z = brick_loc[2];
-
-    // setting pre-place approach
-    place_location[0].pre_place_approach.direction.header.frame_id = "base_link";
-    place_location[0].pre_place_approach.direction.vector.z = -1.0;
-    place_location[0].pre_place_approach.min_distance = 0.1;
-    place_location[0].pre_place_approach.desired_distance = 0.5;
-
-    // setting post-grasp retreat
-    place_location[0].post_place_retreat.direction.header.frame_id = "base_link";
-    place_location[0].post_place_retreat.direction.vector.z = 1.0;
-    place_location[0].post_place_retreat.min_distance = 0.1;
-    place_location[0].post_place_retreat.desired_distance = 0.5;
-
-    // setting posture of end-effector after placing object
-    openPincer(place_location[0].post_place_posture);
-
-    move_group.place(brick_id, place_location);
+    pincer_pub.publish(angle);
 }
