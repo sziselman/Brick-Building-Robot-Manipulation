@@ -4,15 +4,13 @@ namespace control_library
 {
     void moveArm(moveit::planning_interface::MoveGroupInterface& move_group, geometry_msgs::Pose& pose)
     {
-        // ROS_INFO_STREAM("+++++++ Planning to pose goal +++++++");
-
         move_group.setPoseTarget(pose);
 
         // Call the planner to compute the plan and visualize it
         moveit::planning_interface::MoveGroupInterface::Plan plan;
-        // bool success = (move_group_interface.plan(plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+        bool success = (move_group.plan(plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
 
-        // ROS_INFO_NAMED("tutorial", "Visualizing plan (pose goal) %s", success ? "" : "FAILED");
+        ROS_INFO_NAMED("tutorial", "Visualizing plan (pose goal) %s", success ? "" : "FAILED");
 
         // moving to pose goal
         move_group.move();
@@ -61,26 +59,30 @@ namespace control_library
         move_group_interface.move();
     }
 
-    // geometry_msgs::Pose getPreGraspPose(tf::StampedTransform& transform)
-    // {
-    //     // get the rotation (quaternion) from the transform
-    //     tf::Quaternion quat = transform.getRotation();
-    //     // get the yaw of the quaternion
-    //     double yaw = tf::getYaw(quat);
-    //     // create pre-grasp pose
-    //     tf2::Quaternion pre_grasp_quat;
-    //     pre_grasp_quat.setRPY(PI/2, PI/2, yaw);
+    geometry_msgs::Pose getPreGraspPose(geometry_msgs::TransformStamped& transform)
+    {
+        // convert the msg to tf
+        tf2::Quaternion quat_tf;
+        tf2::fromMsg(transform.transform.rotation, quat_tf);
+        
+        tf2::Matrix3x3 matrix(quat_tf);
 
-    //     geometry_msgs::Pose pose;
-    //     pose.orientation = tf2::toMsg(pre_grasp_quat);
-    //     pose.position.x = transform.getOrigin().x();
-    //     pose.position.y = transform.getOrigin().y();
-    //     pose.position.z = transform.getOrigin().z() + 0.05;
+        double roll, pitch, yaw;
+        matrix.getRPY(roll, pitch, yaw);
 
-    //     return pose;
-    // }
+        tf2::Quaternion pre_grasp_quat;
+        pre_grasp_quat.setRPY(roll + PI/2, pitch + PI/2, yaw);
 
-    // geometry_msgs::Pose getGraspPose(tf::StampedTransform& transform)
+        geometry_msgs::Pose pose;
+        pose.orientation = tf2::toMsg(pre_grasp_quat);
+        pose.position.x = transform.transform.translation.x;
+        pose.position.y = transform.transform.translation.y;
+        pose.position.z = transform.transform.translation.z + 0.05;
+
+        return pose;
+    }
+
+    // geometry_msgs::Pose getGraspPose(geometry_msgs::TransformStamped& transform)
     // {
     //     // get the rotation (quaternion) from the transform
     //     tf::Quaternion quat = transform.getRotation();

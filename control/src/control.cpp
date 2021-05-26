@@ -20,13 +20,15 @@
 #include <moveit_visual_tools/moveit_visual_tools.h>
 
 #include <geometry_msgs/Pose.h>
+#include <geometry_msgs/TransformStamped.h>
+
 #include <string>
 
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <std_msgs/Float64.h>
 
-#include <tf/transform_listener.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <control/control_library.hpp>
 
@@ -38,7 +40,6 @@ std::vector<double> brick_dimensions;
 std::vector<double> jackal_dimensions;
 std::vector<double> adroit_stow_positions;
 
-static constexpr double PI=3.14159265358979323846;
 ros::Publisher pincer_pub;
 
 /********************
@@ -81,7 +82,8 @@ int main(int argc, char* argv[])
     // Publishers, subscribers, listeners, services, etc.
 
     pincer_pub = n.advertise<std_msgs::Float64>("/hdt_arm/pincer_joint_position_controller/command", 10);
-    tf::TransformListener brick_listener;
+    tf2_ros::Buffer tfBuffer;
+    tf2_ros::TransformListener brick_listener(tfBuffer);
 
     ros::AsyncSpinner spinner(1);
     spinner.start();
@@ -136,19 +138,18 @@ int main(int argc, char* argv[])
 
     ROS_INFO_STREAM("+++++++ BEGINNING PICK + PLACE +++++++");
 
-    // // listen for a transform broadcasted by Nathaniel + Velodyne
-    // // create pose for collision object
-    // tf::StampedTransform brick_transform;
-    // brick_listener.lookupTransform("/hdt_arm", "/brick", ros::Time(0), brick_transform);
+    // listen for a transform broadcasted by Nathaniel + Velodyne
+    // create pose for collision object
 
-    // geometry_msgs::Pose brick_pose;
-    // geometry_msgs::Quaternion brick_quat_msg;
-    // quaternionTFToMsg(brick_transform.getRotation(), brick_quat_msg);
+    geometry_msgs::TransformStamped brick_transform;
+    brick_transform = tfBuffer.lookupTransform("/hdt_arm", "/brick", ros::Time(0));
 
-    // brick_pose.orientation = brick_quat_msg;
-    // brick_pose.position.x = brick_transform.getOrigin().x();
-    // brick_pose.position.y = brick_transform.getOrigin().y();
-    // brick_pose.position.z = brick_transform.getOrigin().z();
+    geometry_msgs::Pose brick_pose;
+
+    brick_pose.orientation = brick_transform.transform.rotation;
+    brick_pose.position.x = brick_transform.transform.translation.x;
+    brick_pose.position.y = brick_transform.transform.translation.y;
+    brick_pose.position.z = brick_transform.transform.translation.z;
 
     // ADD COLLISION OBJECT / BRICK
     geometry_msgs::Pose brick_start_pose;
@@ -292,3 +293,4 @@ void pincerAngle(std_msgs::Float64 angle)
 {
     pincer_pub.publish(angle);
 }
+
