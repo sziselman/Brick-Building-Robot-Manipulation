@@ -28,6 +28,8 @@
 
 #include <tf/transform_listener.h>
 
+#include <control/control_library.hpp>
+
 
 /********************
  * Global Variables
@@ -43,15 +45,12 @@ ros::Publisher pincer_pub;
  * Helper Functions
  * *****************/
 void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, geometry_msgs::Pose& brick_pose);
-void moveArm(moveit::planning_interface::MoveGroupInterface& move_group_interface, geometry_msgs::Pose& pose);
-void movePincer(moveit::planning_interface::MoveGroupInterface& move_group, const moveit::core::JointModelGroup* joint_model_group, double joint_angle);
 void pincerAngle(std_msgs::Float64 angle);
-void stowPosition(moveit::planning_interface::MoveGroupInterface& move_group, const moveit::core::JointModelGroup* model_group);
-geometry_msgs::Pose getPreGraspPose(tf::StampedTransform& transform);
-geometry_msgs::Pose getGraspPose(tf::StampedTransform& transform);
 
 int main(int argc, char* argv[])
 {
+    using namespace control_library;
+    
     // Initialize the node & node handle
 
     ros::init(argc, argv, "arm_control");
@@ -137,10 +136,10 @@ int main(int argc, char* argv[])
 
     ROS_INFO_STREAM("+++++++ BEGINNING PICK + PLACE +++++++");
 
-    // listen for a transform broadcasted by Nathaniel + Velodyne
-    // create pose for collision object
-    tf::StampedTransform brick_transform;
-    brick_listener.lookupTransform("/hdt_arm", "/brick", ros::Time(0), brick_transform);
+    // // listen for a transform broadcasted by Nathaniel + Velodyne
+    // // create pose for collision object
+    // tf::StampedTransform brick_transform;
+    // brick_listener.lookupTransform("/hdt_arm", "/brick", ros::Time(0), brick_transform);
 
     // geometry_msgs::Pose brick_pose;
     // geometry_msgs::Quaternion brick_quat_msg;
@@ -199,7 +198,7 @@ int main(int argc, char* argv[])
     visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the adroit arm in stow position");
 
     // PLACE THE ARM IN STOW POSITION
-    stowPosition(arm_move_group_interface, arm_model_group);
+    stowPosition(arm_move_group_interface, arm_model_group, adroit_stow_positions);
     visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the brick to the goal location");
 
     // MOVE ARM TO BRICK GOAL LOCATION
@@ -287,111 +286,9 @@ void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& pla
     planning_scene_interface.applyCollisionObjects(collision_objects);
 }
 
-/// \brief a function that finds a brick designated by location and orientation
-/// \param move_group_interface
-/// \param pose : a geometry_msgs::Pose message that represents the pose of the adroit end-effector
-void moveArm(moveit::planning_interface::MoveGroupInterface& move_group_interface, geometry_msgs::Pose& pose)
-{
-    ROS_INFO_STREAM("+++++++ Planning to pose goal +++++++");
-
-    move_group_interface.setPoseTarget(pose);
-
-    // Call the planner to compute the plan and visualize it
-    moveit::planning_interface::MoveGroupInterface::Plan plan;
-    bool success = (move_group_interface.plan(plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-
-    ROS_INFO_NAMED("tutorial", "Visualizing plan (pose goal) %s", success ? "" : "FAILED");
-
-    // moving to pose goal
-    move_group_interface.move();
-}
-
-void movePincer(moveit::planning_interface::MoveGroupInterface& move_group, const moveit::core::JointModelGroup* joint_model_group, double joint_angle)
-{
-    // a pointer that references the current robot's states
-    moveit::core::RobotStatePtr current_state = move_group.getCurrentState();
-    // get the current set of joint values for the group
-    std::vector<double> joint_group_positions;
-    current_state->copyJointGroupPositions(joint_model_group, joint_group_positions);
-
-    // modify the first joint position
-    joint_group_positions[0] =joint_angle;
-
-    // pass the desired joint positions to move_group as goal for planning
-    move_group.setJointValueTarget(joint_group_positions);
-
-    moveit::planning_interface::MoveGroupInterface::Plan plan;
-    bool success = (move_group.plan(plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-
-    move_group.move(); 
-}
-
 /// \brief a function that publishes a position for the pincer_joint
 /// \param angle : a std_msgs::Float64 that represents the position
 void pincerAngle(std_msgs::Float64 angle)
 {
     pincer_pub.publish(angle);
-}
-
-/// \brief a function that places the adroit arm in a "stow away" position while the jackal is moving
-/// \param move_group : a moveit::planning_interface::MoveGroupInterface that is used to plan and execute the joint-space goal
-void stowPosition(moveit::planning_interface::MoveGroupInterface& move_group_interface, const moveit::core::JointModelGroup* model_group)
-{
-    // create a pointer that references the robot's state
-    moveit::core::RobotStatePtr current_state = move_group_interface.getCurrentState();
-    std::vector<double> joint_group_positions;
-    current_state->copyJointGroupPositions(model_group, joint_group_positions);
-
-    // modify the joints, plan to the new joint-space goal and visualize
-    for (int i = 0; i < joint_group_positions.size(); i++)
-    {
-        joint_group_positions[i] = adroit_stow_positions[i];
-    }
-    move_group_interface.setJointValueTarget(joint_group_positions);
-
-    // Call the planner to compute the plan
-    moveit::planning_interface::MoveGroupInterface::Plan plan;
-    bool success = (move_group_interface.plan(plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-
-    ROS_INFO_NAMED("tutorial", "Visualizing plan (joint-space goal) %s", success ? "" : "FAILED");
-
-    move_group_interface.move();
-}
-
-geometry_msgs::Pose getPreGraspPose(tf::StampedTransform& transform)
-{
-    // get the rotation (quaternion) from the transform
-    tf::Quaternion quat = transform.getRotation();
-    // get the yaw of the quaternion
-    double yaw = tf::getYaw(quat);
-    // create pre-grasp pose
-    tf2::Quaternion pre_grasp_quat;
-    pre_grasp_quat.setRPY(PI/2, PI/2, yaw);
-
-    geometry_msgs::Pose pose;
-    pose.orientation = tf2::toMsg(pre_grasp_quat);
-    pose.position.x = transform.getOrigin().x();
-    pose.position.y = transform.getOrigin().y();
-    pose.position.z = transform.getOrigin().z() + 0.05;
-
-    return pose;
-}
-
-geometry_msgs::Pose getGraspPose(tf::StampedTransform& transform)
-{
-    // get the rotation (quaternion) from the transform
-    tf::Quaternion quat = transform.getRotation();
-    // get the yaw of the quaternion
-    double yaw = tf::getYaw(quat);
-    // create pre-grasp pose
-    tf2::Quaternion pre_grasp_quat;
-    pre_grasp_quat.setRPY(PI/2, PI/2, yaw);
-
-    geometry_msgs::Pose pose;
-    pose.orientation = tf2::toMsg(pre_grasp_quat);
-    pose.position.x = transform.getOrigin().x();
-    pose.position.y = transform.getOrigin().y();
-    pose.position.z = transform.getOrigin().z() - 0.01;
-
-    return pose;
 }
