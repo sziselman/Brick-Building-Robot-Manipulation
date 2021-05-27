@@ -2,10 +2,12 @@ frequency: 100
 
 brick_dimensions: [0.092075, 0.193675, 0.05715]
 
-brick_start_location: [0.0, 0.4, -0.221425]
+# brick_start_location: [0.35, 0.35, -0.221425]
+brick_start_location: [0.325, 0.0, 0.028575]
 brick_start_orientation: [0.0, 0.0, 1.570796327]
 
-brick_goal_location: [0.0, -0.4, -0.221425]
+# brick_goal_location: [0.0, -0.4, -0.221425]
+brick_goal_location: [0.05, -0.325, 0.028575]
 brick_goal_orientation: [0.0, 0.0, 0.0]
 
 jackal_dimensions: [0.508, 0.430, 0.250]

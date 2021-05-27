@@ -9,6 +9,7 @@ project(control)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
+  message_generation
   moveit_msgs
   moveit_ros_planning_interface
   moveit_visual_tools
@@ -110,7 +111,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES control
- CATKIN_DEPENDS roscpp rospy std_msgs
+ CATKIN_DEPENDS message_runtime roscpp rospy std_msgs
 #  DEPENDS system_lib
 )
 

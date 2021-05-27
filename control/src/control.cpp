@@ -32,21 +32,23 @@
 
 #include <control/control_library.hpp>
 
+#include <std_srvs/Empty.h>
 
 /********************
  * Global Variables
  * *****************/
-std::vector<double> brick_dimensions;
-std::vector<double> jackal_dimensions;
-std::vector<double> adroit_stow_positions;
+static std::vector<double> brick_dimensions;
+static std::vector<double> jackal_dimensions;
+static std::vector<double> adroit_stow_positions;
 
-ros::Publisher pincer_pub;
+static ros::Publisher pincer_pub;
 
 /********************
  * Helper Functions
  * *****************/
 void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, geometry_msgs::Pose& brick_pose);
 void pincerAngle(std_msgs::Float64 angle);
+bool stow_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
 
 int main(int argc, char* argv[])
 {
@@ -64,9 +66,10 @@ int main(int argc, char* argv[])
     std::vector<double> brick_start_loc, brick_start_orient;
     std::vector<double> brick_goal_loc, brick_goal_orient;
 
-    std_msgs::Float64 open_angle, grasp_angle;
+    std_msgs::Float64 open_angle, grasp_angle, close_angle;
     open_angle.data = 0.90;
-    grasp_angle.data = 0.60;
+    grasp_angle.data = 0.50;
+    close_angle.data = 0.0;
     
     // Read parameters from parameter server
 
@@ -84,6 +87,7 @@ int main(int argc, char* argv[])
     pincer_pub = n.advertise<std_msgs::Float64>("/hdt_arm/pincer_joint_position_controller/command", 10);
     tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener brick_listener(tfBuffer);
+    ros::ServiceServer stow_pos_service = n.advertiseService("/stow_position", stow_position);
 
     ros::AsyncSpinner spinner(1);
     spinner.start();
@@ -138,18 +142,18 @@ int main(int argc, char* argv[])
 
     ROS_INFO_STREAM("+++++++ BEGINNING PICK + PLACE +++++++");
 
-    // listen for a transform broadcasted by Nathaniel + Velodyne
-    // create pose for collision object
+    // // listen for a transform broadcasted by Nathaniel + Velodyne
+    // // create pose for collision object
 
-    geometry_msgs::TransformStamped brick_transform;
-    brick_transform = tfBuffer.lookupTransform("/hdt_arm", "/brick", ros::Time(0));
+    // geometry_msgs::TransformStamped brick_transform;
+    // brick_transform = tfBuffer.lookupTransform("/hdt_arm", "/brick", ros::Time(0));
 
-    geometry_msgs::Pose brick_pose;
+    // geometry_msgs::Pose brick_pose;
 
-    brick_pose.orientation = brick_transform.transform.rotation;
-    brick_pose.position.x = brick_transform.transform.translation.x;
-    brick_pose.position.y = brick_transform.transform.translation.y;
-    brick_pose.position.z = brick_transform.transform.translation.z;
+    // brick_pose.orientation = brick_transform.transform.rotation;
+    // brick_pose.position.x = brick_transform.transform.translation.x;
+    // brick_pose.position.y = brick_transform.transform.translation.y;
+    // brick_pose.position.z = brick_transform.transform.translation.z;
 
     // ADD COLLISION OBJECT / BRICK
     geometry_msgs::Pose brick_start_pose;
@@ -161,7 +165,13 @@ int main(int argc, char* argv[])
     brick_start_pose.position.z = brick_start_loc[2];
 
     addCollisionObjects(planning_scene_interface, brick_start_pose);
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the arm to pre-grasp pose");
+    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the to pre-grasp pose");
+
+    // movePincer(pincer_move_group_interface, arm_model_group, 0.9);
+    pincerAngle(open_angle);
+    stowPosition(arm_move_group_interface, arm_model_group, adroit_stow_positions);
+    pincerAngle(close_angle);
+    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the to pre-grasp pose");
 
     // MOVE ARM TO THE BRICK START LOCATION
     geometry_msgs::Pose pre_grasp_pose;
@@ -176,7 +186,7 @@ int main(int argc, char* argv[])
     visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to open the pincers");
 
     // OPEN THE PINCERS
-    // // movePincer(pincer_move_group_interface, pincer_model_group, 0.9);
+    // // // movePincer(pincer_move_group_interface, pincer_model_group, 0.9);
     pincerAngle(open_angle);
     visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the arm to grasp pose");
 
@@ -194,13 +204,12 @@ int main(int argc, char* argv[])
     // CLOSE THE PINCERS ON THE BRICK
     // movePincer(pincer_move_group_interface, pincer_model_group, 0.3);
     pincerAngle(grasp_angle);
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move attach the brick");
-    arm_move_group_interface.attachObject("brick");
+    // arm_move_group_interface.attachObject("brick");
     visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the adroit arm in stow position");
 
-    // PLACE THE ARM IN STOW POSITION
-    stowPosition(arm_move_group_interface, arm_model_group, adroit_stow_positions);
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the brick to the goal location");
+    // // PLACE THE ARM IN STOW POSITION
+    // stowPosition(arm_move_group_interface, arm_model_group, adroit_stow_positions);
+    // visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the brick to the goal location");
 
     // MOVE ARM TO BRICK GOAL LOCATION
     geometry_msgs::Pose place_pose;
@@ -215,10 +224,11 @@ int main(int argc, char* argv[])
 
     pincerAngle(open_angle);
     // movePincer(pincer_move_group_interface, pincer_model_group, 0.9);
-    arm_move_group_interface.detachObject("brick");
+    // arm_move_group_interface.detachObject("brick");
     visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to end the pick and place");
 
     ROS_INFO_STREAM("+++++++ COMPLETED PICK + PLACE +++++++");
+
 
     ros::shutdown();
     return 0;
@@ -232,7 +242,8 @@ void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& pla
 {
     // Create vector to hold bricks + jackal
     std::vector<moveit_msgs::CollisionObject> collision_objects;
-    collision_objects.resize(2);
+    // collision_objects.resize(2);
+    collision_objects.resize(1);
 
     /**************************
      * Add the Jackal as a collision object
@@ -261,27 +272,27 @@ void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& pla
 
     collision_objects[0].operation = collision_objects[0].ADD;
 
-    /**************************
-     * Add the brick as a collision object
-     * ***********************/
-    collision_objects[1].id = "brick";
-    collision_objects[1].header.frame_id = "base_link";
+    // /**************************
+    //  * Add the brick as a collision object
+    //  * ***********************/
+    // collision_objects[1].id = "brick";
+    // collision_objects[1].header.frame_id = "base_link";
 
-    // Define the brick primitive its dimensions
-    collision_objects[1].primitives.resize(1);
-    collision_objects[1].primitives[0].type = collision_objects[1].primitives[0].BOX;
-    collision_objects[1].primitives[0].dimensions.resize(3);
-    for (int i = 0; i < brick_dimensions.size(); i++)
-    {
-        collision_objects[1].primitives[0].dimensions[i] = brick_dimensions[i];
-    }
+    // // Define the brick primitive its dimensions
+    // collision_objects[1].primitives.resize(1);
+    // collision_objects[1].primitives[0].type = collision_objects[1].primitives[0].BOX;
+    // collision_objects[1].primitives[0].dimensions.resize(3);
+    // for (int i = 0; i < brick_dimensions.size(); i++)
+    // {
+    //     collision_objects[1].primitives[0].dimensions[i] = brick_dimensions[i];
+    // }
 
-    // Define a pose for the brick (inputted in the function)
-    collision_objects[1].primitive_poses.resize(1);
-    collision_objects[1].primitive_poses[0] = brick_pose;
+    // // Define a pose for the brick (inputted in the function)
+    // collision_objects[1].primitive_poses.resize(1);
+    // collision_objects[1].primitive_poses[0] = brick_pose;
 
 
-    collision_objects[1].operation = collision_objects[1].ADD;
+    // collision_objects[1].operation = collision_objects[1].ADD;
 
     // add the collision object into the world
     planning_scene_interface.applyCollisionObjects(collision_objects);
@@ -294,3 +305,7 @@ void pincerAngle(std_msgs::Float64 angle)
     pincer_pub.publish(angle);
 }
 
+bool stow_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+{
+    return true;
+}
