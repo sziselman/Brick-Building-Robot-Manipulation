@@ -9,6 +9,7 @@
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <vector>
 
 namespace control_library
 {
@@ -38,6 +39,10 @@ namespace control_library
     /// \brief a function that gets the grasp pose of the adroit arm
     /// \param transform : the transform received from Nathaniel / velodyne
     geometry_msgs::Pose getGraspPose(geometry_msgs::TransformStamped& transform);
+
+    /// \brief a function that returns a list of poses for brick placements
+    /// \param num : the number of bricks
+    std::vector<geometry_msgs::Pose> buildWall(int num);
 }
 
 #endif

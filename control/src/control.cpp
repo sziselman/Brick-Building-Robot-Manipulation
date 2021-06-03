@@ -43,12 +43,23 @@ static std::vector<double> adroit_stow_positions;
 
 static ros::Publisher pincer_pub;
 
+enum State {Idle, Stow, PreGraspPose, GraspPose, PlacePose};
+
+static State current_state = Idle;
+
+static double upperbound_z, floor_z;
+
 /********************
  * Helper Functions
  * *****************/
 void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, geometry_msgs::Pose& brick_pose);
 void pincerAngle(std_msgs::Float64 angle);
 bool stow_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
+bool open_pincers(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
+bool close_pincers(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
+bool pregrasp_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
+bool grasp_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
+bool place_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
 
 int main(int argc, char* argv[])
 {
@@ -81,15 +92,36 @@ int main(int argc, char* argv[])
     n.getParam("brick_goal_location", brick_goal_loc);
     n.getParam("brick_goal_orientation", brick_goal_orient);
     n.getParam("adroit_stow_positions", adroit_stow_positions);
+    n.getParam("upperbound_plane_z", upperbound_z);
+    n.getParam("floor_plane_z", floor_z);
 
     // Publishers, subscribers, listeners, services, etc.
 
     pincer_pub = n.advertise<std_msgs::Float64>("/hdt_arm/pincer_joint_position_controller/command", 10);
     tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener brick_listener(tfBuffer);
+
     ros::ServiceServer stow_pos_service = n.advertiseService("/stow_position", stow_position);
+    ros::ServiceClient stow_pos_client = n.serviceClient<std_srvs::Empty>("/stow_position");
+    
+    ros::ServiceServer pregrasp_service = n.advertiseService("/pregrasp_position", pregrasp_position);
+    ros::ServiceClient pregrasp_client = n.serviceClient<std_srvs::Empty>("/pregrasp_position");
+
+    ros::ServiceServer grasp_service = n.advertiseService("/grasp_position", grasp_position);
+    ros::ServiceClient grasp_client = n.serviceClient<std_srvs::Empty>("/grasp_position");
+
+    ros::ServiceServer place_service = n.advertiseService("/place_position", place_position);
+    ros::ServiceClient place_client = n.serviceClient<std_srvs::Empty>("/place_position");
+
+    ros::ServiceServer close_pincers_service = n.advertiseService("/close_pincers", close_pincers);
+    ros::ServiceClient close_pincers_client = n.serviceClient<std_srvs::Empty>("/close_pincers");
+
+    ros::ServiceServer open_pincers_service = n.advertiseService("/open_pincers", open_pincers);
+    ros::ServiceClient open_pincers_client = n.serviceClient<std_srvs::Empty>("/open_pincers");
+
 
     ros::AsyncSpinner spinner(1);
+
     spinner.start();
 
     /**************************
@@ -165,72 +197,72 @@ int main(int argc, char* argv[])
     brick_start_pose.position.z = brick_start_loc[2];
 
     addCollisionObjects(planning_scene_interface, brick_start_pose);
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the to pre-grasp pose");
 
-    // movePincer(pincer_move_group_interface, arm_model_group, 0.9);
-    pincerAngle(open_angle);
-    stowPosition(arm_move_group_interface, arm_model_group, adroit_stow_positions);
-    pincerAngle(close_angle);
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the to pre-grasp pose");
+    while (ros::ok())
+    {
+        switch (current_state)
+        {
+            case Idle:
+                {
+                    break;
+                }
 
-    // MOVE ARM TO THE BRICK START LOCATION
-    geometry_msgs::Pose pre_grasp_pose;
-    tf2::Quaternion pre_grasp_quat;
-    pre_grasp_quat.setRPY(PI/2, PI/2, brick_start_orient[2]);
-    pre_grasp_pose.orientation = tf2::toMsg(pre_grasp_quat);
-    pre_grasp_pose.position.x = brick_start_loc[0];
-    pre_grasp_pose.position.y = brick_start_loc[1];
-    pre_grasp_pose.position.z = brick_start_loc[2] + 0.1;
+            case Stow:
+                {
+                    ROS_INFO_STREAM("Moving Adroit stow position...");
+                    stowPosition(arm_move_group_interface, arm_model_group, adroit_stow_positions);
+                    current_state = Idle;
+                    break;
+                }
 
-    moveArm(arm_move_group_interface, pre_grasp_pose);
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to open the pincers");
+            case PreGraspPose:
+                {
+                    ROS_INFO_STREAM("Moving Pincer to pre-grasp position...");
+                    geometry_msgs::Pose pre_grasp_pose;
+                    tf2::Quaternion pre_grasp_quat;
+                    pre_grasp_quat.setRPY(PI/2, PI/2, brick_start_orient[2]);
+                    pre_grasp_pose.orientation = tf2::toMsg(pre_grasp_quat);
+                    pre_grasp_pose.position.x = brick_start_loc[0];
+                    pre_grasp_pose.position.y = brick_start_loc[1];
+                    pre_grasp_pose.position.z = brick_start_loc[2] + 0.1;
+                    moveArm(arm_move_group_interface, pre_grasp_pose);
+                    current_state = Idle;
+                    break;
+                }
+            
+            case GraspPose:
+                {
+                    ROS_INFO_STREAM("Moving Pincer to grasp position...");
+                    geometry_msgs::Pose grasp_pose;
+                    tf2::Quaternion grasp_quat;
+                    grasp_quat.setRPY(PI/2, PI/2, brick_start_orient[2]);
+                    grasp_pose.orientation = tf2::toMsg(grasp_quat);
+                    grasp_pose.position.x = brick_start_loc[0];
+                    grasp_pose.position.y = brick_start_loc[1];
+                    grasp_pose.position.z = brick_start_loc[2] - 0.01;
+                    moveArm(arm_move_group_interface, grasp_pose);
+                    current_state = Idle;
+                    break;
+                }
 
-    // OPEN THE PINCERS
-    // // // movePincer(pincer_move_group_interface, pincer_model_group, 0.9);
-    pincerAngle(open_angle);
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the arm to grasp pose");
-
-    geometry_msgs::Pose grasp_pose;
-    tf2::Quaternion grasp_quat;
-    grasp_quat.setRPY(PI/2, PI/2, brick_start_orient[2]);
-    grasp_pose.orientation = tf2::toMsg(grasp_quat);
-    grasp_pose.position.x = brick_start_loc[0];
-    grasp_pose.position.y = brick_start_loc[1];
-    grasp_pose.position.z = brick_start_loc[2] - 0.01;
-
-    moveArm(arm_move_group_interface, grasp_pose);
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to close the pincers");
-
-    // CLOSE THE PINCERS ON THE BRICK
-    // movePincer(pincer_move_group_interface, pincer_model_group, 0.3);
-    pincerAngle(grasp_angle);
-    // arm_move_group_interface.attachObject("brick");
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the adroit arm in stow position");
-
-    // // PLACE THE ARM IN STOW POSITION
-    // stowPosition(arm_move_group_interface, arm_model_group, adroit_stow_positions);
-    // visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the brick to the goal location");
-
-    // MOVE ARM TO BRICK GOAL LOCATION
-    geometry_msgs::Pose place_pose;
-    tf2::Quaternion place_quat;
-    place_quat.setRPY(PI/2, PI/2, brick_goal_orient[2]);
-    place_pose.orientation = tf2::toMsg(grasp_quat);
-    place_pose.position.x = brick_goal_loc[0];
-    place_pose.position.y = brick_goal_loc[1];
-    place_pose.position.z = brick_goal_loc[2] - 0.01;
-    moveArm(arm_move_group_interface, place_pose);
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to open the pincers");
-
-    pincerAngle(open_angle);
-    // movePincer(pincer_move_group_interface, pincer_model_group, 0.9);
-    // arm_move_group_interface.detachObject("brick");
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to end the pick and place");
-
-    ROS_INFO_STREAM("+++++++ COMPLETED PICK + PLACE +++++++");
-
-
-    ros::shutdown();
+            case PlacePose:
+                {
+                    ROS_INFO_STREAM("Placing the brick in goal location...");
+                    geometry_msgs::Pose place_pose;
+                    tf2::Quaternion place_quat;
+                    place_quat.setRPY(PI/2, PI/2, brick_goal_orient[2]);
+                    place_pose.orientation = tf2::toMsg(place_quat);
+                    place_pose.position.x = brick_goal_loc[0];
+                    place_pose.position.y = brick_goal_loc[1];
+                    place_pose.position.z = brick_goal_loc[2] - 0.01;
+                    moveArm(arm_move_group_interface, place_pose);
+                    current_state = Idle;
+                    break;
+                }
+        }
+    }
+    
+    ros::waitForShutdown();
     return 0;
 }
 
@@ -243,7 +275,7 @@ void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& pla
     // Create vector to hold bricks + jackal
     std::vector<moveit_msgs::CollisionObject> collision_objects;
     // collision_objects.resize(2);
-    collision_objects.resize(1);
+    collision_objects.resize(2);
 
     /**************************
      * Add the Jackal as a collision object
@@ -273,39 +305,110 @@ void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& pla
     collision_objects[0].operation = collision_objects[0].ADD;
 
     // /**************************
-    //  * Add the brick as a collision object
+    //  * Add the upper bounding plane as a collision object
     //  * ***********************/
-    // collision_objects[1].id = "brick";
+    // collision_objects[1].id = "upper_bound_plane";
     // collision_objects[1].header.frame_id = "base_link";
 
-    // // Define the brick primitive its dimensions
-    // collision_objects[1].primitives.resize(1);
-    // collision_objects[1].primitives[0].type = collision_objects[1].primitives[0].BOX;
-    // collision_objects[1].primitives[0].dimensions.resize(3);
-    // for (int i = 0; i < brick_dimensions.size(); i++)
-    // {
-    //     collision_objects[1].primitives[0].dimensions[i] = brick_dimensions[i];
-    // }
+    // // Define the upper bounding plane's coefficients
+    // collision_objects[1].planes.resize(1);
+    // collision_objects[1].planes[0].coef[0] = 0.0;
+    // collision_objects[1].planes[0].coef[1] = 0.0;
+    // collision_objects[1].planes[0].coef[2] = 1.0;
+    // collision_objects[1].planes[0].coef[3] = -1.0;
 
-    // // Define a pose for the brick (inputted in the function)
-    // collision_objects[1].primitive_poses.resize(1);
-    // collision_objects[1].primitive_poses[0] = brick_pose;
+    // // Define a pose for the upper bounding plane
+    // collision_objects[1].plane_poses.resize(1);
+    // tf2::Quaternion plane_quat;
+    // plane_quat.setRPY(0.0, 0.0, 0.0);
 
+    // collision_objects[1].plane_poses[0].orientation = tf2::toMsg(plane_quat);
+    // collision_objects[1].plane_poses[0].position.x = 0.0;
+    // collision_objects[1].plane_poses[0].position.y = 0.0;
+    // collision_objects[1].plane_poses[0].position.z = upperbound_z;
 
     // collision_objects[1].operation = collision_objects[1].ADD;
+
+    /**************************
+     * Add the brick as a collision object
+     * ***********************/
+    collision_objects[1].id = "brick";
+    collision_objects[1].header.frame_id = "base_link";
+
+    // Define the brick primitive its dimensions
+    collision_objects[1].primitives.resize(1);
+    collision_objects[1].primitives[0].type = collision_objects[1].primitives[0].BOX;
+    collision_objects[1].primitives[0].dimensions.resize(3);
+    for (int i = 0; i < brick_dimensions.size(); i++)
+    {
+        collision_objects[1].primitives[0].dimensions[i] = brick_dimensions[i];
+    }
+
+    // Define a pose for the brick (inputted in the function)
+    collision_objects[1].primitive_poses.resize(1);
+    collision_objects[1].primitive_poses[0] = brick_pose;
+
+
+    collision_objects[1].operation = collision_objects[1].ADD;
 
     // add the collision object into the world
     planning_scene_interface.applyCollisionObjects(collision_objects);
 }
 
-/// \brief a function that publishes a position for the pincer_joint
-/// \param angle : a std_msgs::Float64 that represents the position
-void pincerAngle(std_msgs::Float64 angle)
-{
-    pincer_pub.publish(angle);
-}
-
+/// \brief a callback function for service that places the arm in its stow position
+/// \param req : empty request
+/// \param res : empty response
 bool stow_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
 {
+    current_state = Stow;
+    return true;
+}
+
+/// \brief a callback function for service that places the arm in pre-grasp position above brick
+/// \param req : empty request
+/// \param res : empty response
+bool pregrasp_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+{
+    current_state = PreGraspPose;
+    return true;
+}
+
+/// \brief a callback function for service that places the arm in grasp position
+/// \param req : empty request
+/// \param res : empty response
+bool grasp_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+{
+    current_state = GraspPose;
+    return true;
+}
+
+/// \brief a callback function for service that places the arm in goal brick location
+/// \param req : empty request
+/// \param res : empty response
+bool place_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+{
+    current_state = PlacePose;
+    return true;
+}
+
+/// \brief a callback function for service that opens the pincers
+/// \param req : empty request
+/// \param res : empty response
+bool open_pincers(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+{
+    std_msgs::Float64 open_angle;
+    open_angle.data = 0.90;
+    pincer_pub.publish(open_angle);
+    return true;
+}
+
+/// \brief a callback function for service that closes the pincers
+/// \param req : empty request
+/// \param res : empty response
+bool close_pincers(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+{
+    std_msgs::Float64 close_angle;
+    close_angle.data = 0.0;
+    pincer_pub.publish(close_angle);
     return true;
 }

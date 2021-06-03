@@ -104,4 +104,32 @@ namespace control_library
 
         return pose;
     }
+
+    std::vector<geometry_msgs::Pose> buildWall(std::vector<double>& brick_dims, int num)
+    {
+        std::vector<geometry_msgs::Pose> brick_poses;
+        brick_poses.resize(num);
+
+        tf2::Quaternion brick_quat;
+        brick_quat.setRPY(0.0, 0.0, 0.0);
+
+        double x = 0.0;
+        double y = 0.0;
+        double z = brick_dims[2];
+
+        for (int n = 0; n < num; n++)
+        {
+            geometry_msgs::Pose brick_pose;
+            brick_pose.orientation = tf2::toMsg(brick_quat);
+            brick_pose.position.x = x;
+            brick_pose.position.y = y;
+            brick_pose.position.z = z;
+
+            brick_poses.push_back(brick_pose);
+
+            y += brick_dims[1]+0.01;
+        }
+
+        return brick_poses;
+    }
 }
