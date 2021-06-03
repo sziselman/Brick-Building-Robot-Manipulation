@@ -113,6 +113,9 @@ namespace control_library
         tf2::Quaternion brick_quat;
         brick_quat.setRPY(0.0, 0.0, 0.0);
 
+        int row = 0;
+        int col = 0;
+
         double x = 0.0;
         double y = 0.0;
         double z = brick_dims[2];

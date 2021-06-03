@@ -196,6 +196,7 @@ int main(int argc, char* argv[])
     brick_start_pose.position.y = brick_start_loc[1];
     brick_start_pose.position.z = brick_start_loc[2];
 
+    stowPosition(arm_move_group_interface, arm_model_group, adroit_stow_positions);
     addCollisionObjects(planning_scene_interface, brick_start_pose);
 
     while (ros::ok())
@@ -275,7 +276,7 @@ void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& pla
     // Create vector to hold bricks + jackal
     std::vector<moveit_msgs::CollisionObject> collision_objects;
     // collision_objects.resize(2);
-    collision_objects.resize(2);
+    collision_objects.resize(3);
 
     /**************************
      * Add the Jackal as a collision object
@@ -304,31 +305,6 @@ void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& pla
 
     collision_objects[0].operation = collision_objects[0].ADD;
 
-    // /**************************
-    //  * Add the upper bounding plane as a collision object
-    //  * ***********************/
-    // collision_objects[1].id = "upper_bound_plane";
-    // collision_objects[1].header.frame_id = "base_link";
-
-    // // Define the upper bounding plane's coefficients
-    // collision_objects[1].planes.resize(1);
-    // collision_objects[1].planes[0].coef[0] = 0.0;
-    // collision_objects[1].planes[0].coef[1] = 0.0;
-    // collision_objects[1].planes[0].coef[2] = 1.0;
-    // collision_objects[1].planes[0].coef[3] = -1.0;
-
-    // // Define a pose for the upper bounding plane
-    // collision_objects[1].plane_poses.resize(1);
-    // tf2::Quaternion plane_quat;
-    // plane_quat.setRPY(0.0, 0.0, 0.0);
-
-    // collision_objects[1].plane_poses[0].orientation = tf2::toMsg(plane_quat);
-    // collision_objects[1].plane_poses[0].position.x = 0.0;
-    // collision_objects[1].plane_poses[0].position.y = 0.0;
-    // collision_objects[1].plane_poses[0].position.z = upperbound_z;
-
-    // collision_objects[1].operation = collision_objects[1].ADD;
-
     /**************************
      * Add the brick as a collision object
      * ***********************/
@@ -350,6 +326,32 @@ void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& pla
 
 
     collision_objects[1].operation = collision_objects[1].ADD;
+
+    /**************************
+     * Add the upper bounding plane as a collision object
+     * ***********************/
+    collision_objects[2].id = "upper_bound_plane";
+    collision_objects[2].header.frame_id = "base_link";
+
+    // Define the upper bounding plane's coefficients
+    collision_objects[2].planes.resize(1);
+    collision_objects[2].planes[0].coef[0] = 0;
+    collision_objects[2].planes[0].coef[1] = 0;
+    collision_objects[2].planes[0].coef[2] = 1;
+    collision_objects[2].planes[0].coef[3] = 0;
+
+    // Define a pose for the upper bounding plane
+    collision_objects[2].plane_poses.resize(1);
+    tf2::Quaternion plane_quat;
+    plane_quat.setRPY(0.0, 0.0, 0.0);
+
+    collision_objects[2].plane_poses[0].orientation = tf2::toMsg(plane_quat);
+    collision_objects[2].plane_poses[0].position.x = 0.0;
+    collision_objects[2].plane_poses[0].position.y = 0.0;
+    collision_objects[2].plane_poses[0].position.z = upperbound_z;
+    collision_objects[2].plane_poses[0].orientation.w = 1.0;
+
+    collision_objects[2].operation = collision_objects[2].ADD;
 
     // add the collision object into the world
     planning_scene_interface.applyCollisionObjects(collision_objects);
