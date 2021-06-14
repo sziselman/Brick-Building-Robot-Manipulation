@@ -47,7 +47,7 @@ enum State {Idle, Stow, PreGraspPose, GraspPose, PlacePose};
 
 static State current_state = Idle;
 
-static double upperbound_z, floor_z;
+static double upperbound_z, lowerbound_z;
 
 /********************
  * Helper Functions
@@ -93,7 +93,7 @@ int main(int argc, char* argv[])
     n.getParam("brick_goal_orientation", brick_goal_orient);
     n.getParam("adroit_stow_positions", adroit_stow_positions);
     n.getParam("upperbound_plane_z", upperbound_z);
-    n.getParam("floor_plane_z", floor_z);
+    n.getParam("lowerbound_plane_z", lowerbound_z);
 
     // Publishers, subscribers, listeners, services, etc.
 
@@ -276,7 +276,7 @@ void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& pla
     // Create vector to hold bricks + jackal
     std::vector<moveit_msgs::CollisionObject> collision_objects;
     // collision_objects.resize(2);
-    collision_objects.resize(3);
+    collision_objects.resize(4);
 
     /**************************
      * Add the Jackal as a collision object
@@ -352,6 +352,29 @@ void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& pla
     collision_objects[2].plane_poses[0].orientation.w = 1.0;
 
     collision_objects[2].operation = collision_objects[2].ADD;
+
+    /*************************
+     * Add the lower bounding plane (ground) as a collision object
+     * **********************/
+    collision_objects[3].id = "lower_bound_plane";
+    collision_objects[3].header.frame_id = "base_link";
+
+    // Define the lower bounding plane's coefficients
+    collision_objects[3].planes.resize(1);
+    collision_objects[3].planes[0].coef[0] = 0;
+    collision_objects[3].planes[0].coef[1] = 0;
+    collision_objects[3].planes[0].coef[2] = 1;
+    collision_objects[3].planes[0].coef[3] = 0;
+
+    // Define a pose for the lower bounding plane
+    collision_objects[3].plane_poses.resize(1);
+    collision_objects[3].plane_poses[0].orientation = tf2::toMsg(plane_quat);
+    collision_objects[3].plane_poses[0].position.x = 0.0;
+    collision_objects[3].plane_poses[0].position.y = 0.0;
+    collision_objects[3].plane_poses[0].position.z = lowerbound_z;
+    collision_objects[3].plane_poses[0].orientation.w = 1.0;
+
+    collision_objects[3].operation = collision_objects[3].ADD;
 
     // add the collision object into the world
     planning_scene_interface.applyCollisionObjects(collision_objects);
