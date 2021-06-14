@@ -13,7 +13,13 @@ Package used for the controls of the HDT Adroit Manipulator Arm in the Brick Bui
 * ```rosservice call /close_pincers``` : Closes the adroit pincers, so that it can either grasp a brick or close the pincers in resting position.
 
 __Example Usage:__
-First, we want to launch the ```control``` package for the Adroit arm.
+First, make sure to source the ROS distro.
+```
+source /opt/ros/noetic/setup.bash
+```
+Next, we want to launch the ```control``` package for the Adroit arm.
 ```
 roslaunch control control.launch
+```
+This will launch the MoveIt! simulator in RViz. In order to move the arm, call one of the services listed above.
 ```
