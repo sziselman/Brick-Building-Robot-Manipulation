@@ -1,6 +1,9 @@
 <launch>
+
+    <arg name="simulation" default="true" doc="argument that is used to determine if the software is being on the hardware or not"/>
+
     <include file="$(find control)/launch/hdt_arm_bringup_1.launch">
-        <arg name="simulation" value="true"/>
+        <arg name="simulation" value="$(arg simulation)"/>
     </include>
 
     <include file="$(find hdt_6dof_a24_pincer_moveit)/launch/planning_context.launch">

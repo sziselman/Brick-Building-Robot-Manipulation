@@ -8,15 +8,24 @@ This project explores motion planning and manipulation of the HDT Adroit Arm in 
 ## Software
 ROS Noetic needs to be installed to work with the software in this repository. See the following link: https://ros-planning.github.io/moveit_tutorials/doc/getting_started/getting_started.html
 
-MoveIt! needs to also be built from source, so that the robot's motion planning can be planned, executed and simulated. See the following link: https://moveit.ros.org/install/source/
-
-The HDT Adroit software must be installed in the project workspace. This software requires permission to acccess.
-
-Lastly, clone this repository in the project workspace and run the following commands:
+MoveIt! needs to also be built from source, so that the robot's motion planning can be planned, executed and simulated. See the following link: https://moveit.ros.org/install/source/. Once the software has been installed on the computer, build and source the workspace.
 ```
+cd ~/moveit_ws
+rosdep install --from-paths src --ignore-src -r -y
 catkin_make
 source devel/setup.bash
 ```
+
+The HDT Adroit software must be installed in the catkin workspace. This software requires permission to acccess.
+
+Lastly, clone this repository in the catkin workspace and run the following commands:
+```
+cd ~/catkin_ws
+rosdep install --from-paths src --ignore-src -r -y
+catkin_make
+source devel/setup.bash
+```
+Ensure that you are building from a clean build if this is the first time you are building your workspace. Doing this allows you to avoid resourcing any previously sourced workspaces. Now, the software is ready to be run!
 
 ## Packages
 ## Implementation
