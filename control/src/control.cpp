@@ -40,10 +40,11 @@
 static std::vector<double> brick_dimensions;
 static std::vector<double> jackal_dimensions;
 static std::vector<double> adroit_stow_positions;
+static std::vector<double> velodyne_dimensions;
 
 static ros::Publisher pincer_pub;
 
-enum State {Idle, Stow, PreGraspPose, GraspPose, PrePlacePose, PlacePose};
+enum State {Idle, Stow, PreGraspPose, GraspPose, PrePlacePose, PlacePose, GrabBrick, ReleaseBrick};
 
 static State current_state = Idle;
 
@@ -61,6 +62,8 @@ bool pregrasp_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response&
 bool grasp_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
 bool preplace_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
 bool place_position(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
+bool grab_brick(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
+bool release_brick(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
 
 int main(int argc, char* argv[])
 {
@@ -95,6 +98,7 @@ int main(int argc, char* argv[])
     n.getParam("adroit_stow_positions", adroit_stow_positions);
     n.getParam("upperbound_plane_z", upperbound_z);
     n.getParam("lowerbound_plane_z", lowerbound_z);
+    n.getParam("velodyne_dimensions", velodyne_dimensions);
 
     // Publishers, subscribers, listeners, services, etc.
 
@@ -123,6 +127,11 @@ int main(int argc, char* argv[])
     ros::ServiceServer open_pincers_service = n.advertiseService("/open_pincers", open_pincers);
     ros::ServiceClient open_pincers_client = n.serviceClient<std_srvs::Empty>("/open_pincers");
 
+    ros::ServiceServer grab_brick_service = n.advertiseService("/grab_brick", grab_brick);
+    ros::ServiceClient grab_brick_client = n.serviceClient<std_srvs::Empty>("/grab_brick");
+
+    ros::ServiceServer release_brick_service = n.advertiseService("/release_brick", release_brick);
+    ros::ServiceClient release_brick_client = n.serviceClient<std_srvs::Empty>("/release_brick");
 
     ros::AsyncSpinner spinner(1);
 
@@ -200,7 +209,6 @@ int main(int argc, char* argv[])
     brick_start_pose.position.y = brick_start_loc[1];
     brick_start_pose.position.z = brick_start_loc[2];
 
-    // stowPosition(arm_move_group_interface, arm_model_group, adroit_stow_positions);
     addCollisionObjects(planning_scene_interface, brick_start_pose);
 
     while (ros::ok())
@@ -244,7 +252,7 @@ int main(int argc, char* argv[])
                     grasp_pose.orientation = tf2::toMsg(grasp_quat);
                     grasp_pose.position.x = brick_start_loc[0];
                     grasp_pose.position.y = brick_start_loc[1];
-                    grasp_pose.position.z = brick_start_loc[2] - 0.03;
+                    grasp_pose.position.z = brick_start_loc[2] - 0.02;
                     moveArm(arm_move_group_interface, grasp_pose);
                     current_state = Idle;
                     break;
@@ -273,8 +281,28 @@ int main(int argc, char* argv[])
                     place_pose.orientation = tf2::toMsg(place_quat);
                     place_pose.position.x = brick_goal_loc[0];
                     place_pose.position.y = brick_goal_loc[1];
-                    place_pose.position.z = brick_goal_loc[2] - 0.03;
+                    place_pose.position.z = brick_goal_loc[2] - 0.02;
                     moveArm(arm_move_group_interface, place_pose);
+                    current_state = Idle;
+                    break;
+                }
+
+            case GrabBrick:
+                {
+                    ROS_INFO_STREAM("Grabbing the brick...");
+                    std_srvs::Empty empty;
+                    close_pincers_client.call(empty);
+                    arm_move_group_interface.attachObject("brick");
+                    current_state = Idle;
+                    break;
+                }
+
+            case ReleaseBrick:
+                {
+                    ROS_INFO_STREAM("Releasing the brick...");
+                    std_srvs::Empty empty;
+                    open_pincers_client.call(empty);
+                    arm_move_group_interface.detachObject("brick");
                     current_state = Idle;
                     break;
                 }
@@ -288,123 +316,6 @@ int main(int argc, char* argv[])
 /***************************
  * Collision objects while attached to jackal
  * ************************/
-// /// \brief a function that adds a brick as a collision object to the MoveIt planning scene
-// /// \param planning_scene_interface
-// /// \param brick_pose : a geometry_msgs::Pose message that represents the brick's pose
-// /// \param brick_orient : the orientation of the brick to be added
-// void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, geometry_msgs::Pose& brick_pose)
-// {
-//     // Create vector to hold bricks + jackal
-//     std::vector<moveit_msgs::CollisionObject> collision_objects;
-//     // collision_objects.resize(2);
-//     collision_objects.resize(4);
-
-//     /**************************
-//      * Add the Jackal as a collision object
-//      * ***********************/
-//     collision_objects[0].id = "jackal";
-//     collision_objects[0].header.frame_id = "base_link";
-
-//     // Define the jackal primitive and its dimensions
-//     collision_objects[0].primitives.resize(1);
-//     collision_objects[0].primitives[0].type = collision_objects[0].primitives[0].BOX;
-//     collision_objects[0].primitives[0].dimensions.resize(3);
-//     for (int i = 0; i < jackal_dimensions.size(); i++)
-//     {
-//         collision_objects[0].primitives[0].dimensions[i] = jackal_dimensions[i];
-//     }
-
-//     // Define a pose for the jackal
-//     collision_objects[0].primitive_poses.resize(1);
-//     tf2::Quaternion jackal_quat;
-//     jackal_quat.setRPY(0.0, 0.0, 0.0);
-
-//     collision_objects[0].primitive_poses[0].orientation = tf2::toMsg(jackal_quat);
-//     collision_objects[0].primitive_poses[0].position.x = 0.356 - jackal_dimensions[0]/2;
-//     collision_objects[0].primitive_poses[0].position.y = 0.0;
-//     collision_objects[0].primitive_poses[0].position.z = -jackal_dimensions[2]/2;
-
-//     collision_objects[0].operation = collision_objects[0].ADD;
-
-//     /**************************
-//      * Add the brick as a collision object
-//      * ***********************/
-//     collision_objects[1].id = "brick";
-//     collision_objects[1].header.frame_id = "base_link";
-
-//     // Define the brick primitive its dimensions
-//     collision_objects[1].primitives.resize(1);
-//     collision_objects[1].primitives[0].type = collision_objects[1].primitives[0].BOX;
-//     collision_objects[1].primitives[0].dimensions.resize(3);
-//     for (int i = 0; i < brick_dimensions.size(); i++)
-//     {
-//         collision_objects[1].primitives[0].dimensions[i] = brick_dimensions[i];
-//     }
-
-//     // Define a pose for the brick (inputted in the function)
-//     collision_objects[1].primitive_poses.resize(1);
-//     collision_objects[1].primitive_poses[0] = brick_pose;
-
-
-//     collision_objects[1].operation = collision_objects[1].ADD;
-
-//     /**************************
-//      * Add the upper bounding plane as a collision object
-//      * ***********************/
-//     collision_objects[2].id = "upper_bound_plane";
-//     collision_objects[2].header.frame_id = "base_link";
-
-//     // Define the upper bounding plane's coefficients
-//     collision_objects[2].planes.resize(1);
-//     collision_objects[2].planes[0].coef[0] = 0;
-//     collision_objects[2].planes[0].coef[1] = 0;
-//     collision_objects[2].planes[0].coef[2] = 1;
-//     collision_objects[2].planes[0].coef[3] = 0;
-
-//     // Define a pose for the upper bounding plane
-//     collision_objects[2].plane_poses.resize(1);
-//     tf2::Quaternion plane_quat;
-//     plane_quat.setRPY(0.0, 0.0, 0.0);
-
-//     collision_objects[2].plane_poses[0].orientation = tf2::toMsg(plane_quat);
-//     collision_objects[2].plane_poses[0].position.x = 0.0;
-//     collision_objects[2].plane_poses[0].position.y = 0.0;
-//     collision_objects[2].plane_poses[0].position.z = upperbound_z;
-//     collision_objects[2].plane_poses[0].orientation.w = 1.0;
-
-//     collision_objects[2].operation = collision_objects[2].ADD;
-
-//     /*************************
-//      * Add the lower bounding plane (ground) as a collision object
-//      * **********************/
-//     collision_objects[3].id = "lower_bound_plane";
-//     collision_objects[3].header.frame_id = "base_link";
-
-//     // Define the lower bounding plane's coefficients
-//     collision_objects[3].planes.resize(1);
-//     collision_objects[3].planes[0].coef[0] = 0;
-//     collision_objects[3].planes[0].coef[1] = 0;
-//     collision_objects[3].planes[0].coef[2] = 1;
-//     collision_objects[3].planes[0].coef[3] = 0;
-
-//     // Define a pose for the lower bounding plane
-//     collision_objects[3].plane_poses.resize(1);
-//     collision_objects[3].plane_poses[0].orientation = tf2::toMsg(plane_quat);
-//     collision_objects[3].plane_poses[0].position.x = 0.0;
-//     collision_objects[3].plane_poses[0].position.y = 0.0;
-//     collision_objects[3].plane_poses[0].position.z = lowerbound_z;
-//     collision_objects[3].plane_poses[0].orientation.w = 1.0;
-
-//     collision_objects[3].operation = collision_objects[3].ADD;
-
-//     // add the collision object into the world
-//     planning_scene_interface.applyCollisionObjects(collision_objects);
-// }
-
-
-/********************************
- * Collision Objects when not connected to jackal
- * *****************************/
 /// \brief a function that adds a brick as a collision object to the MoveIt planning scene
 /// \param planning_scene_interface
 /// \param brick_pose : a geometry_msgs::Pose message that represents the brick's pose
@@ -413,59 +324,201 @@ void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& pla
 {
     // Create vector to hold bricks + jackal
     std::vector<moveit_msgs::CollisionObject> collision_objects;
-    collision_objects.resize(2);
+    collision_objects.resize(5);
 
     /**************************
-     * Add the brick as a collision object
+     * Add the Jackal as a collision object
      * ***********************/
-    collision_objects[0].id = "brick";
+    collision_objects[0].id = "jackal";
     collision_objects[0].header.frame_id = "base_link";
 
-    // Define the brick primitive its dimensions
+    // Define the jackal primitive and its dimensions
     collision_objects[0].primitives.resize(1);
     collision_objects[0].primitives[0].type = collision_objects[0].primitives[0].BOX;
     collision_objects[0].primitives[0].dimensions.resize(3);
-    for (int i = 0; i < brick_dimensions.size(); i++)
+    for (int i = 0; i < jackal_dimensions.size(); i++)
     {
-        collision_objects[0].primitives[0].dimensions[i] = brick_dimensions[i];
+        collision_objects[0].primitives[0].dimensions[i] = jackal_dimensions[i];
     }
 
-    // Define a pose for the brick (inputted in the function)
+    // Define a pose for the jackal
     collision_objects[0].primitive_poses.resize(1);
-    collision_objects[0].primitive_poses[0] = brick_pose;
+    tf2::Quaternion jackal_quat;
+    jackal_quat.setRPY(0.0, 0.0, 0.0);
 
+    collision_objects[0].primitive_poses[0].orientation = tf2::toMsg(jackal_quat);
+    collision_objects[0].primitive_poses[0].position.x = -0.356 + jackal_dimensions[0]/2;
+    collision_objects[0].primitive_poses[0].position.y = 0.0;
+    collision_objects[0].primitive_poses[0].position.z = lowerbound_z + jackal_dimensions[2]/2;
 
     collision_objects[0].operation = collision_objects[0].ADD;
 
     /**************************
-     * Add the upper bounding plane as a collision object
+     * Add the velodyne as a collision object
      * ***********************/
-    collision_objects[1].id = "upper_bound_plane";
+    collision_objects[1].id = "velodyne";
     collision_objects[1].header.frame_id = "base_link";
 
+    // Define the velodyne primitive and its dimensions
+    collision_objects[1].primitives.resize(1);
+    collision_objects[1].primitives[0].type = collision_objects[1].primitives[0].CYLINDER;
+    collision_objects[1].primitives[0].dimensions.resize(2);
+    for (int i = 0; i < velodyne_dimensions.size(); i++)
+    {
+        collision_objects[1].primitives[0].dimensions[i] = velodyne_dimensions[i];
+    }
+
+    // Define a pose for the velodyne
+    collision_objects[1].primitive_poses.resize(1);
+    tf2::Quaternion velo_quat;
+    velo_quat.setRPY(0.0, 0.0, 0.0);
+
+    collision_objects[1].primitive_poses[0].orientation = tf2::toMsg(velo_quat);
+    collision_objects[1].primitive_poses[0].position.x = -0.254 + velodyne_dimensions[1]/2;
+    collision_objects[1].primitive_poses[0].position.y = 0.0;
+    collision_objects[1].primitive_poses[0].position.z = velodyne_dimensions[0]/2;
+
+    collision_objects[1].operation = collision_objects[1].ADD;
+
+    /**************************
+     * Add the upper bounding plane as a collision object
+     * ***********************/
+    collision_objects[2].id = "upper_bound_plane";
+    collision_objects[2].header.frame_id = "base_link";
+
     // Define the upper bounding plane's coefficients
-    collision_objects[1].planes.resize(1);
-    collision_objects[1].planes[0].coef[0] = 0;
-    collision_objects[1].planes[0].coef[1] = 0;
-    collision_objects[1].planes[0].coef[2] = 1;
-    collision_objects[1].planes[0].coef[3] = 0;
+    collision_objects[2].planes.resize(1);
+    collision_objects[2].planes[0].coef[0] = 0;
+    collision_objects[2].planes[0].coef[1] = 0;
+    collision_objects[2].planes[0].coef[2] = 1;
+    collision_objects[2].planes[0].coef[3] = 0;
 
     // Define a pose for the upper bounding plane
-    collision_objects[1].plane_poses.resize(1);
+    collision_objects[2].plane_poses.resize(1);
     tf2::Quaternion plane_quat;
     plane_quat.setRPY(0.0, 0.0, 0.0);
 
-    collision_objects[1].plane_poses[0].orientation = tf2::toMsg(plane_quat);
-    collision_objects[1].plane_poses[0].position.x = 0.0;
-    collision_objects[1].plane_poses[0].position.y = 0.0;
-    collision_objects[1].plane_poses[0].position.z = 0.55;
-    collision_objects[1].plane_poses[0].orientation.w = 1.0;
+    collision_objects[2].plane_poses[0].orientation = tf2::toMsg(plane_quat);
+    collision_objects[2].plane_poses[0].position.x = 0.0;
+    collision_objects[2].plane_poses[0].position.y = 0.0;
+    collision_objects[2].plane_poses[0].position.z = upperbound_z;
+    collision_objects[2].plane_poses[0].orientation.w = 1.0;
 
-    collision_objects[1].operation = collision_objects[1].ADD;
+    collision_objects[2].operation = collision_objects[2].ADD;
+
+    /*************************
+     * Add the lower bounding plane (ground) as a collision object
+     * **********************/
+    collision_objects[3].id = "lower_bound_plane";
+    collision_objects[3].header.frame_id = "base_link";
+
+    // Define the lower bounding plane's coefficients
+    collision_objects[3].planes.resize(1);
+    collision_objects[3].planes[0].coef[0] = 0;
+    collision_objects[3].planes[0].coef[1] = 0;
+    collision_objects[3].planes[0].coef[2] = 1;
+    collision_objects[3].planes[0].coef[3] = 0;
+
+    // Define a pose for the lower bounding plane
+    collision_objects[3].plane_poses.resize(1);
+    collision_objects[3].plane_poses[0].orientation = tf2::toMsg(plane_quat);
+    collision_objects[3].plane_poses[0].position.x = 0.0;
+    collision_objects[3].plane_poses[0].position.y = 0.0;
+    collision_objects[3].plane_poses[0].position.z = lowerbound_z;
+    collision_objects[3].plane_poses[0].orientation.w = 1.0;
+
+    collision_objects[3].operation = collision_objects[3].ADD;
+
+    /**************************
+     * Add the brick as a collision object
+     * ***********************/
+    collision_objects[4].id = "brick";
+    collision_objects[4].header.frame_id = "base_link";
+
+    // Define the brick primitive its dimensions
+    collision_objects[4].primitives.resize(1);
+    collision_objects[4].primitives[0].type = collision_objects[4].primitives[0].BOX;
+    collision_objects[4].primitives[0].dimensions.resize(3);
+    for (int i = 0; i < brick_dimensions.size(); i++)
+    {
+        collision_objects[4].primitives[0].dimensions[i] = brick_dimensions[i];
+    }
+
+    // Define a pose for the brick (inputted in the function)
+    collision_objects[4].primitive_poses.resize(1);
+    collision_objects[4].primitive_poses[0] = brick_pose;
+
+    collision_objects[4].operation = collision_objects[4].ADD;
 
     // add the collision object into the world
     planning_scene_interface.applyCollisionObjects(collision_objects);
 }
+
+
+// /********************************
+//  * Collision Objects when not connected to jackal
+//  * *****************************/
+// /// \brief a function that adds a brick as a collision object to the MoveIt planning scene
+// /// \param planning_scene_interface
+// /// \param brick_pose : a geometry_msgs::Pose message that represents the brick's pose
+// /// \param brick_orient : the orientation of the brick to be added
+// void addCollisionObjects(moveit::planning_interface::PlanningSceneInterface& planning_scene_interface, geometry_msgs::Pose& brick_pose)
+// {
+//     // Create vector to hold bricks + jackal
+//     std::vector<moveit_msgs::CollisionObject> collision_objects;
+//     collision_objects.resize(2);
+
+//     /**************************
+//      * Add the brick as a collision object
+//      * ***********************/
+//     collision_objects[0].id = "brick";
+//     collision_objects[0].header.frame_id = "base_link";
+
+//     // Define the brick primitive its dimensions
+//     collision_objects[0].primitives.resize(1);
+//     collision_objects[0].primitives[0].type = collision_objects[0].primitives[0].BOX;
+//     collision_objects[0].primitives[0].dimensions.resize(3);
+//     for (int i = 0; i < brick_dimensions.size(); i++)
+//     {
+//         collision_objects[0].primitives[0].dimensions[i] = brick_dimensions[i];
+//     }
+
+//     // Define a pose for the brick (inputted in the function)
+//     collision_objects[0].primitive_poses.resize(1);
+//     collision_objects[0].primitive_poses[0] = brick_pose;
+
+
+//     collision_objects[0].operation = collision_objects[0].ADD;
+
+//     /**************************
+//      * Add the upper bounding plane as a collision object
+//      * ***********************/
+//     collision_objects[1].id = "upper_bound_plane";
+//     collision_objects[1].header.frame_id = "base_link";
+
+//     // Define the upper bounding plane's coefficients
+//     collision_objects[1].planes.resize(1);
+//     collision_objects[1].planes[0].coef[0] = 0;
+//     collision_objects[1].planes[0].coef[1] = 0;
+//     collision_objects[1].planes[0].coef[2] = 1;
+//     collision_objects[1].planes[0].coef[3] = 0;
+
+//     // Define a pose for the upper bounding plane
+//     collision_objects[1].plane_poses.resize(1);
+//     tf2::Quaternion plane_quat;
+//     plane_quat.setRPY(0.0, 0.0, 0.0);
+
+//     collision_objects[1].plane_poses[0].orientation = tf2::toMsg(plane_quat);
+//     collision_objects[1].plane_poses[0].position.x = 0.0;
+//     collision_objects[1].plane_poses[0].position.y = 0.0;
+//     collision_objects[1].plane_poses[0].position.z = 0.55;
+//     collision_objects[1].plane_poses[0].orientation.w = 1.0;
+
+//     collision_objects[1].operation = collision_objects[1].ADD;
+
+//     // add the collision object into the world
+//     planning_scene_interface.applyCollisionObjects(collision_objects);
+// }
 
 
 /// \brief a callback function for service that places the arm in its stow position
@@ -531,5 +584,21 @@ bool close_pincers(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res
     std_msgs::Float64 close_angle;
     close_angle.data = 0.0;
     pincer_pub.publish(close_angle);
+    return true;
+}
+
+/// \brief a callback function for service that closes the pincers to grab a brick
+/// \param req : empty request
+/// \param res : empty response
+bool grab_brick(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+{
+    current_state = GrabBrick;
+    return true;
+}
+
+/// \brief a callback function for service that opens the pincers to release a brick
+bool release_brick(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+{
+    current_state = ReleaseBrick;
     return true;
 }

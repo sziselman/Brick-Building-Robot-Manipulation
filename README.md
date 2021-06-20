@@ -6,8 +6,24 @@ This project explores motion planning and manipulation of the HDT Adroit Arm in 
 
 ## Hardware
 ## Software
+ROS Noetic needs to be installed to work with the software in this repository. See the following link: https://ros-planning.github.io/moveit_tutorials/doc/getting_started/getting_started.html
+
+MoveIt! needs to also be built from source, so that the robot's motion planning can be planned, executed and simulated. See the following link: https://moveit.ros.org/install/source/
+
+The HDT Adroit software must be installed in the project workspace. This software requires permission to acccess.
+
+Lastly, clone this repository in the project workspace and run the following commands:
+```
+catkin_make
+source devel/setup.bash
+```
+
 ## Packages
 ## Implementation
+
+## Notes for Integration with Brick Building Navigation software
+Follow the instructions at the following repository to set up the Navigation software: https://github.com/nan0314/Brick-Building-Robot-Navigation. Make sure that the above steps above to set up the software have been followed and are in the same workspace.
+
 ## Summary
 __This repository contains the following packages:__
 * control - a package that is used for the controls of the HDT Adroit Manipulator Arm.

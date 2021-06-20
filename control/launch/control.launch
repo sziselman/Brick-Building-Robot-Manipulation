@@ -1,6 +1,6 @@
 <launch>
     <include file="$(find control)/launch/hdt_arm_bringup_1.launch">
-        <arg name="simulation" value="false"/>
+        <arg name="simulation" value="true"/>
     </include>
 
     <include file="$(find hdt_6dof_a24_pincer_moveit)/launch/planning_context.launch">
