@@ -1,0 +1,21 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "",
+        "limitSymbolsToIncludedHeaders": true
+      },
+      "includePath": [
+        "/home/sarah/Documents/ME_499_spring/project_ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/sarah/Documents/ME_499_spring/project_ws/src/repository/control/include/**",
+        "/home/sarah/Documents/ME_499_spring/project_ws/src/hdt_6dof_a24_pincer/hdt_adroit_control/include/**",
+        "/home/sarah/Documents/ME_499_spring/project_ws/src/hdt_6dof_a24_pincer/hdt_adroit_debug/include/**",
+        "/home/sarah/Documents/ME_499_spring/project_ws/src/hdt_6dof_a24_pincer/hdt_generic_joystick/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS"
+    }
+  ],
+  "version": 4
+}

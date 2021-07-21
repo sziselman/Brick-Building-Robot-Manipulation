@@ -14,7 +14,7 @@ brick_start_orientation: [0.0, 0.0, 1.570796327]
 # brick_goal_location: [0.35, -0.25, 0.028575]
 
 ## pseudo brick goal location for when the adroit is attached to the jackal
-brick_goal_location: [0.0, 0.35, -0.221425]
+brick_goal_location: [0.0, 0.45, -0.221425]
 
 brick_goal_orientation: [0.0, 0.0, 0.0]
 
@@ -24,4 +24,4 @@ velodyne_dimensions: [1.0, 0.06]
 adroit_stow_positions: [0.0, 1.5708, -1.5, 0.0, -0.0708, 1.5708]
 
 upperbound_plane_z: 0.41
-lowerbound_plane_z: -0.250
+lowerbound_plane_z: -0.255

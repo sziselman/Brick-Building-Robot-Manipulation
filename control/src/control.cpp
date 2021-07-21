@@ -582,7 +582,8 @@ bool open_pincers(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
 bool close_pincers(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
 {
     std_msgs::Float64 close_angle;
-    close_angle.data = 0.0;
+    close_angle.data = 0.80;
+    // close_angle.data = 0.0;
     pincer_pub.publish(close_angle);
     return true;
 }
